@@ -130,10 +130,10 @@ Goal: one table travels from nflverse to Python to Postgres to Next.js to a live
 - [x] **0.1 Install the tools (Windows).** Git for Windows (includes Git Bash, which Claude Code uses on Windows), Node.js LTS, uv (PowerShell installer), the GitHub CLI (`gh`), DBeaver and VS Code. Docker Desktop is already installed; confirm it uses the WSL 2 engine.
   - Learn: what each tool is for; PATH; PowerShell vs Git Bash.
   - Done when: `winver` shows version 22H2 (Docker Desktop's minimum on Windows 10), `wsl --status` shows WSL 2, and `git --version`, `node -v`, `uv --version`, `gh --version` and `docker --version` all print a version in a new PowerShell window.
-- [ ] **0.2 Create the repo and brief Claude Code.** Public GitHub repo in a folder outside OneDrive (e.g. `C:\dev\down-and-distance`), with the folders from Repo structure, `.gitignore`, `.gitattributes` (`* text=auto eol=lf`), a `README.md` stub, `.env.example`, this plan saved as `docs/build-plan.md`, and a `CLAUDE.md` holding the working rules.
+- [x] **0.2 Create the repo and brief Claude Code.** Public GitHub repo in a folder outside OneDrive (e.g. `C:\dev\down-and-distance`), with the folders from Repo structure, `.gitignore`, `.gitattributes` (`* text=auto eol=lf`), a `README.md` stub, `.env.example`, this plan saved as `docs/build-plan.md`, and a `CLAUDE.md` holding the working rules.
   - Learn: `git init`, `add`, `commit`, `push`; why `.env` is ignored; why line endings matter when code written on Windows runs on Linux (GitHub Actions, Vercel).
   - Done when: the first commit is on GitHub, no `.env` file is, and `/context` in Claude Code lists `CLAUDE.md` under Memory files.
-- [ ] **0.3 Run Postgres locally in Docker.** `docker-compose.yml` with a Postgres container (same major version as Neon) and a named volume. If port 5432 is already taken, map 5433 instead.
+- [x] **0.3 Run Postgres locally in Docker.** `docker-compose.yml` with a Postgres container (same major version as Neon) and a named volume. If port 5432 is already taken, map 5433 instead.
   - Learn: containers, ports, volumes.
   - Done when: DBeaver connects, `SELECT 1;` returns 1, and data survives `docker compose down` then `up`.
 - [ ] **0.4 Set up the Python environment.** `uv init` at the repo root; add `nflreadpy`, `polars`, `sqlalchemy`, `psycopg` and `python-dotenv`.
