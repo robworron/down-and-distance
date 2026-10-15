@@ -139,7 +139,7 @@ Goal: one table travels from nflverse to Python to Postgres to Next.js to a live
 - [x] **0.4 Set up the Python environment.** `uv init` at the repo root; add `nflreadpy`, `polars`, `sqlalchemy`, `psycopg` and `python-dotenv`.
   - Learn: virtual environments, lock files, `uv run`.
   - Done when: a script prints the first 5 rows of the 2025 schedule.
-- [ ] **0.5 Load one season into Postgres.** Write the 2025 schedule to a `raw.schedules` table.
+- [x] **0.5 Load one season into Postgres.** Write the 2025 schedule to a `raw.schedules` table.
   - Learn: connection strings, schemas, how a dataframe becomes a table.
   - Done when: `SELECT COUNT(*) FROM raw.schedules;` returns 285 (272 regular-season plus 13 playoff games).
 - [ ] **0.6 Create the Next.js app.** `create-next-app` in `web/` with TypeScript, Tailwind and the App Router.

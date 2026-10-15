@@ -4,8 +4,10 @@ version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = [
     "nflreadpy>=0.1.5",
+    "pandas>=3.0.6",
     "polars>=2.0.0",
     "psycopg[binary]>=3.3.6",
+    "pyarrow>=26.0.0",
     "python-dotenv>=1.2.4",
     "sqlalchemy>=2.1.4",
 ]
