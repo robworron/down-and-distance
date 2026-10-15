@@ -136,7 +136,7 @@ Goal: one table travels from nflverse to Python to Postgres to Next.js to a live
 - [x] **0.3 Run Postgres locally in Docker.** `docker-compose.yml` with a Postgres container (same major version as Neon) and a named volume. If port 5432 is already taken, map 5433 instead.
   - Learn: containers, ports, volumes.
   - Done when: DBeaver connects, `SELECT 1;` returns 1, and data survives `docker compose down` then `up`.
-- [ ] **0.4 Set up the Python environment.** `uv init` at the repo root; add `nflreadpy`, `polars`, `sqlalchemy`, `psycopg` and `python-dotenv`.
+- [x] **0.4 Set up the Python environment.** `uv init` at the repo root; add `nflreadpy`, `polars`, `sqlalchemy`, `psycopg` and `python-dotenv`.
   - Learn: virtual environments, lock files, `uv run`.
   - Done when: a script prints the first 5 rows of the 2025 schedule.
 - [ ] **0.5 Load one season into Postgres.** Write the 2025 schedule to a `raw.schedules` table.
