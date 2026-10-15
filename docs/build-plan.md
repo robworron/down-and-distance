@@ -142,7 +142,7 @@ Goal: one table travels from nflverse to Python to Postgres to Next.js to a live
 - [x] **0.5 Load one season into Postgres.** Write the 2025 schedule to a `raw.schedules` table.
   - Learn: connection strings, schemas, how a dataframe becomes a table.
   - Done when: `SELECT COUNT(*) FROM raw.schedules;` returns 285 (272 regular-season plus 13 playoff games).
-- [ ] **0.6 Create the Next.js app.** `create-next-app` in `web/` with TypeScript, Tailwind and the App Router.
+- [x] **0.6 Create the Next.js app.** `create-next-app` in `web/` with TypeScript, Tailwind and the App Router.
   - Done when: the starter page loads at localhost:3000.
 - [ ] **0.7 Read the table from Next.js.** A Server Component queries `raw.schedules` and renders a plain HTML table.
   - Learn: Server Components; why the database password never reaches the browser.
