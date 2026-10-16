@@ -12,13 +12,14 @@ SEASON = 2025
 
 
 def main() -> None:
-    schedule = nfl.load_schedules(seasons=[SEASON])
+    # nflreadpy returns Polars; convert to pandas straight away.
+    schedule = nfl.load_schedules(seasons=[SEASON]).to_pandas()
     engine = get_engine()
 
     with engine.begin() as conn:
         conn.execute(text("CREATE SCHEMA IF NOT EXISTS raw"))
 
-    schedule.write_database("raw.schedules", connection=engine, if_table_exists="replace")
+    schedule.to_sql("schedules", engine, schema="raw", if_exists="replace", index=False)
 
     with engine.connect() as conn:
         count = conn.execute(text("SELECT COUNT(*) FROM raw.schedules")).scalar_one()

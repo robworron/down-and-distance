@@ -4,6 +4,8 @@ A public NFL situational-analytics site. Python batch jobs load data into Postgr
 
 The full plan and step checklist is `docs/build-plan.md`. Read the current step there before starting any work. Do not import that file; open it when needed.
 
+Before starting a phase, read `docs/decisions.md`: it logs every place we deviated from the plan, and it wins where the two disagree.
+
 ## Who you're working with
 
 Rob is an honours CS grad, fluent in Next.js/React/TypeScript/Tailwind, with basic Python. He is moving into data analyst work, so SQL, statistics and analysis are the skills he wants to build himself. Explain new tools and concepts in plain English as you introduce them.
@@ -30,8 +32,12 @@ Rob is an honours CS grad, fluent in Next.js/React/TypeScript/Tailwind, with bas
 ## Environment
 
 - Windows 10 Pro, Claude Code desktop app, native Windows (not WSL). Use Git Bash for commands; PowerShell only for Windows-specific tasks.
-- Local Postgres runs in Docker: `docker compose up -d`. Production database is Neon; the site deploys to Vercel from `main`.
-- Python: always through uv (`uv add`, `uv run`). Never use global `pip install`.
+- Local Postgres 18 runs in Docker: `docker compose up -d`, on host port **15432** (Windows/WinNAT reserves 5427–5526, which covers 5432 and 5433). Production database is Neon (also Postgres 18); the site deploys to Vercel from `main`.
+- Python: always through uv (`uv add`, `uv run`). Never use global `pip install`. Python 3.13 is pinned in `.python-version` (dbt compatibility); don't move to 3.14.
+- `.env` holds three connection strings:
+  - `DATABASE_URL`: local Docker Postgres as owner. The default for every pipeline and dbt run, and copied into `web/.env.local` for the local site.
+  - `NEON_DATABASE_URL`: Neon owner role, direct (unpooled) host. Use only for production loads and admin, by setting `DATABASE_URL` to it for that one command.
+  - `WEB_READER_DATABASE_URL`: Neon `web_reader` role, pooled (`-pooler`) host, read-only. This is Vercel's `DATABASE_URL`; written by `pipeline/create_web_reader.py` (rerunning rotates the password, so Vercel must be updated after).
 - Node is used only inside `web/`.
 - Line endings are LF (`.gitattributes`). Use forward slashes in paths inside code and config.
 - Secrets live in `.env` (gitignored). Keep `.env.example` in sync with variable names only. Never print or commit secret values.
@@ -46,7 +52,8 @@ Rob is an honours CS grad, fluent in Next.js/React/TypeScript/Tailwind, with bas
 
 ## Data
 
-- nflverse via `nflreadpy` (returns Polars; use `.to_pandas()` in notebooks). Do not use the deprecated `nfl_data_py`.
+- nflverse via `nflreadpy`. Do not use the deprecated `nfl_data_py`.
+- nflreadpy returns Polars, so convert to pandas immediately with `.to_pandas()` after every load and use pandas everywhere else. Never write Polars code. Polars stays installed only as nflreadpy's dependency.
 - Schedules: 1999 to present. Play-by-play: 2016 to present, trimmed to the columns listed in `docs/data-model.md`.
 - Weather: Open-Meteo archive API (history) and forecast API (upcoming games), at the kickoff hour, using coordinates from `transform/seeds/stadiums.csv`. Cache responses to disk.
 - nflverse `gametime` is Eastern time. Convert with IANA zone names (e.g. `America/Phoenix`), never fixed offsets.

@@ -69,7 +69,7 @@ The stack is Next.js on Vercel, Python batch jobs on GitHub Actions, and Postgre
 | Decision                | Choice                                                          | Why                                                                                                                      |
 | ----------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | Web app                 | Next.js (App Router), TypeScript, Tailwind, on Vercel           | Your existing skills; deploys on every push                                                                              |
-| Pipeline                | Python batch jobs (uv, nflreadpy, Polars) run by GitHub Actions | Data changes after games, so compute once and store the answer                                                           |
+| Pipeline                | Python batch jobs (uv, nflreadpy, pandas) run by GitHub Actions | Data changes after games, so compute once and store the answer                                                           |
 | Transformations         | SQL with dbt Core 1.x (`dbt-postgres`)                          | SQL is the core analyst skill; models are tested and versioned                                                           |
 | Database                | PostgreSQL: Docker locally, Neon in production                  | Neon's free plan holds 1 GB per project and wakes itself after idle periods; Supabase's free projects pause after a week |
 | Repo                    | One public GitHub repo                                          | Visible to employers; free Actions minutes                                                                               |
@@ -136,7 +136,7 @@ Goal: one table travels from nflverse to Python to Postgres to Next.js to a live
 - [x] **0.3 Run Postgres locally in Docker.** `docker-compose.yml` with a Postgres container (same major version as Neon) and a named volume. If port 5432 is already taken, map 5433 instead.
   - Learn: containers, ports, volumes.
   - Done when: DBeaver connects, `SELECT 1;` returns 1, and data survives `docker compose down` then `up`.
-- [x] **0.4 Set up the Python environment.** `uv init` at the repo root; add `nflreadpy`, `polars`, `sqlalchemy`, `psycopg` and `python-dotenv`.
+- [x] **0.4 Set up the Python environment.** `uv init` at the repo root; add `nflreadpy`, `pandas`, `sqlalchemy`, `psycopg` and `python-dotenv`.
   - Learn: virtual environments, lock files, `uv run`.
   - Done when: a script prints the first 5 rows of the 2025 schedule.
 - [x] **0.5 Load one season into Postgres.** Write the 2025 schedule to a `raw.schedules` table.
@@ -168,6 +168,7 @@ Goal: every source loaded into `raw`, repeatable with one command, and checked.
   - Done when: `docs/data-model.md` lists each raw table and its key.
 - [ ] **1.2 Load all schedules, 1999 to present.** The loader takes a `--seasons` argument and upserts on `game_id`.
   - Learn: upserts (`INSERT … ON CONFLICT … DO UPDATE`).
+  - Note: the Phase 0 loader replaces `raw.schedules` on every run (`if_exists="replace"`). This step must switch it to an upsert, so rows are updated in place and the table (and its grants) is never dropped.
   - Done when: regular-season games per season are 248 for 1999–2001 (31 teams), 256 for 2002–2020 and 272 from 2021.
 - [ ] **1.3 Prove the load is idempotent.** Run it twice; edit one row by hand; run it again.
   - Learn: idempotency, and why it makes a failed job safe to rerun.
