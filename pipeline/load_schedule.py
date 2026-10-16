@@ -1,29 +1,32 @@
-"""Load one season of the nflverse schedule into raw.schedules.
+"""Load nflverse schedules into raw.schedules.
 
-For now the table is replaced on every run; upserts arrive in step 1.2.
+Upserts on game_id, so rerunning is safe; games that disappear from a loaded
+season (e.g. a cancelled game) are deleted.
+
+    uv run python -m pipeline.load_schedule --seasons 1999-2026
 """
 
+import argparse
+import logging
+
 import nflreadpy as nfl
-from sqlalchemy import text
 
-from pipeline.db import get_engine
+from pipeline.db import UpsertResult, nflverse_to_pandas, upsert_dataframe
+from pipeline.seasons import parse_seasons
 
-SEASON = 2025
+FIRST_SEASON = 1999
+
+
+def load(seasons: list[int]) -> UpsertResult:
+    schedule = nflverse_to_pandas(nfl.load_schedules(seasons=seasons))
+    return upsert_dataframe(schedule, "schedules", ["game_id"], scope_col="season", scope_values=seasons)
 
 
 def main() -> None:
-    # nflreadpy returns Polars; convert to pandas straight away.
-    schedule = nfl.load_schedules(seasons=[SEASON]).to_pandas()
-    engine = get_engine()
-
-    with engine.begin() as conn:
-        conn.execute(text("CREATE SCHEMA IF NOT EXISTS raw"))
-
-    schedule.to_sql("schedules", engine, schema="raw", if_exists="replace", index=False)
-
-    with engine.connect() as conn:
-        count = conn.execute(text("SELECT COUNT(*) FROM raw.schedules")).scalar_one()
-    print(f"raw.schedules now has {count} rows")
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--seasons", help="e.g. 2025 or 1999-2026; default: current season")
+    load(parse_seasons(parser.parse_args().seasons))
 
 
 if __name__ == "__main__":

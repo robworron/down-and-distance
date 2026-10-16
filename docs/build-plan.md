@@ -166,7 +166,7 @@ Goal: every source loaded into `raw`, repeatable with one command, and checked.
 - [x] **1.1 Set raw-layer conventions.** Raw tables copy the source as-is, plus a `_loaded_at` timestamp. Choose each table's primary key.
   - Learn: raw vs cleaned data; primary keys.
   - Done when: `docs/data-model.md` lists each raw table and its key.
-- [ ] **1.2 Load all schedules, 1999 to present.** The loader takes a `--seasons` argument and upserts on `game_id`.
+- [x] **1.2 Load all schedules, 1999 to present.** The loader takes a `--seasons` argument and upserts on `game_id`.
   - Learn: upserts (`INSERT … ON CONFLICT … DO UPDATE`).
   - Note: the Phase 0 loader replaces `raw.schedules` on every run (`if_exists="replace"`). This step must switch it to an upsert, so rows are updated in place and the table (and its grants) is never dropped.
   - Done when: regular-season games per season are 248 for 1999–2001 (31 teams), 256 for 2002–2020 and 272 from 2021.

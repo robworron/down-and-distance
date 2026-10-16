@@ -20,10 +20,10 @@ Rob is an honours CS grad, fluent in Next.js/React/TypeScript/Tailwind, with bas
   3. Tick the step's box in `docs/build-plan.md` (same commit).
 - Never start a step while the previous step's "Done when" check fails.
 - Keep changes inside the current step. Ideas for later go in `docs/parking-lot.md`, not into the code.
+- Steps marked **You try first** (SQL, statistics, analysis) are not hand-backs: write the solution yourself. Comment each query clause by clause (what it does, and why it sits where it does), and after the check passes, walk through the solution in plain English so Rob can learn from it later.
 
 ## Stop and hand back to Rob when
 
-- A step is marked **You try first** (SQL, statistics, analysis). Explain the goal and the concepts, give hints only if he asks, and wait for his attempt. Review it; write the solution only if he asks.
 - A step needs his accounts or secrets: creating Neon, Vercel or GitHub resources, connection strings, repo secrets. Say exactly what to click or copy, then wait.
 - A phase ends. Summarise what was built and list the checkpoint concepts from the plan.
 - The same error survives two fix attempts. Stop and explain what you tried and what you think is wrong.

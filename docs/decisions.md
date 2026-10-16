@@ -31,3 +31,28 @@ Where the project deviates from `docs/build-plan.md`, and why. Newest last. Wher
 
 - **Changed:** all project code uses pandas. nflreadpy's Polars output is converted with `.to_pandas()` immediately after loading. Polars was removed as a direct dependency and stays installed only because nflreadpy needs it. The Phase 0 loader now writes with `DataFrame.to_sql`.
 - **Why:** pandas is the industry standard for analyst work, and it's what Rob can explain in interviews.
+
+## 2026-10-16 — 2022 has 271 regular-season games (step 1.2)
+
+- **Changed:** the 1.2 check expects 272 regular-season games from 2021, except **271 in 2022**.
+- **Why:** the Week 17 Bills–Bengals game was cancelled after Damar Hamlin's cardiac arrest and never replayed. nflverse correctly omits it.
+
+## 2026-10-16 — raw.schedules recreated with a primary key (step 1.2)
+
+- **Changed:** the Phase 0 `raw.schedules` (no primary key, types inferred from 2025 alone) was dropped and rebuilt from 1999–2026 with `game_id` as its primary key. Neon's copy is rebuilt the same way in step 1.10.
+- **Why:** upserts need a primary key, and types inferred from one season can be wrong for others. The table is fully reloadable from nflverse.
+
+## 2026-10-16 — Upserts also delete stale rows, per season (step 1.2)
+
+- **Changed:** `upsert_dataframe` in `pipeline/db.py` deletes rows in the seasons being loaded whose key is no longer in the source, and logs the count. This applies to `raw.schedules`, `raw.game_weather` and `raw.pbp`; `raw.teams` is upsert-only. A requested season that arrives with no rows raises an error rather than being wiped.
+- **Why:** a plain upsert never removes anything, so a cancelled game or a play nflverse deletes would linger in `raw` forever. Scoping the delete to the loaded seasons keeps a current-season-only run from touching history.
+
+## 2026-10-16 — Integer columns stay integers when they contain nulls (step 1.2)
+
+- **Changed:** loaders convert nflverse data with `nflverse_to_pandas` (`pipeline/db.py`), which maps every Arrow integer type to pandas' nullable `Int64`, instead of a bare `.to_pandas()`. Those columns are `bigint` in Postgres.
+- **Why:** pandas' default turns an integer column with nulls (e.g. scores of unplayed games) into float64, so scores would be stored as 24.0.
+
+## 2026-10-16 — Claude writes the "You try first" steps (step 1.2)
+
+- **Changed:** steps marked **You try first** (and Done-when SQL checks) are no longer hand-backs. Claude Code writes the solution with clause-by-clause comments, and walks through it after the check passes. `CLAUDE.md` is updated to match.
+- **Why:** Rob would rather keep the build moving and learn query-building afterwards from finished, working, commented queries.
