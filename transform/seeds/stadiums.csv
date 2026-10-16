@@ -1,0 +1,68 @@
+stadium_id,name,city,region,country,latitude,longitude,timezone,altitude_m,roof,surface
+ATL00,Georgia Dome,Atlanta,Georgia,US,33.7577,-84.4008,America/New_York,301,dome,fieldturf
+ATL97,Mercedes-Benz Stadium,Atlanta,Georgia,US,33.7554,-84.4008,America/New_York,307,retractable,fieldturf
+BAL00,M&T Bank Stadium,Baltimore,Maryland,US,39.278,-76.6227,America/New_York,5,outdoors,grass
+BOS00,Gillette Stadium,Foxborough,Massachusetts,US,42.0909,-71.2643,America/New_York,89,outdoors,fieldturf
+BOS99,Foxboro Stadium,Foxborough,Massachusetts,US,42.0917,-71.2625,America/New_York,78,outdoors,grass
+BRG00,Tiger Stadium (LSU),Baton Rouge,Louisiana,US,30.412,-91.1838,America/Chicago,9,outdoors,grass
+BUF00,Highmark Stadium (Ralph Wilson Stadium),Orchard Park,New York,US,42.7738,-78.787,America/New_York,222,outdoors,a_turf
+BUF01,Rogers Centre,Toronto,Ontario,CA,43.6414,-79.3894,America/Toronto,84,retractable,a_turf
+CAR00,Bank of America Stadium,Charlotte,North Carolina,US,35.2258,-80.8528,America/New_York,220,outdoors,grass
+CHI98,Soldier Field,Chicago,Illinois,US,41.8623,-87.6167,America/Chicago,186,outdoors,grass
+CHI99,Memorial Stadium (Champaign),Champaign,Illinois,US,40.0992,-88.236,America/Chicago,229,outdoors,astroplay
+CIN00,Paycor Stadium (Paul Brown Stadium),Cincinnati,Ohio,US,39.0955,-84.5161,America/New_York,150,outdoors,fieldturf
+CIN99,Cinergy Field,Cincinnati,Ohio,US,39.0975,-84.5083,America/New_York,160,outdoors,astroturf
+CLE00,Huntington Bank Field (Cleveland Browns Stadium),Cleveland,Ohio,US,41.5061,-81.6995,America/New_York,180,outdoors,grass
+DAL00,AT&T Stadium,Arlington,Texas,US,32.7473,-97.0945,America/Chicago,176,retractable,matrixturf
+DAL99,Texas Stadium,Irving,Texas,US,32.84,-96.911,America/Chicago,136,outdoors,fieldturf
+DEN00,Empower Field at Mile High,Denver,Colorado,US,39.7439,-105.0201,America/Denver,1588,outdoors,grass
+DEN99,Mile High Stadium,Denver,Colorado,US,39.7461,-105.0217,America/Denver,1594,outdoors,grass
+DET00,Ford Field,Detroit,Michigan,US,42.34,-83.0456,America/Detroit,188,dome,fieldturf
+DET99,Pontiac Silverdome,Pontiac,Michigan,US,42.6456,-83.255,America/Detroit,261,dome,astroturf
+FRA00,Deutsche Bank Park,Frankfurt am Main,Hesse,DE,50.0686,8.6455,Europe/Berlin,124,retractable,grass
+GER00,Allianz Arena,Munich,Bavaria,DE,48.2188,11.6247,Europe/Berlin,491,outdoors,grass
+GNB00,Lambeau Field,Green Bay,Wisconsin,US,44.5013,-88.0622,America/Chicago,190,outdoors,grass
+HOU00,NRG Stadium (Reliant Stadium),Houston,Texas,US,29.6847,-95.4107,America/Chicago,13,retractable,grass
+IND00,Lucas Oil Stadium,Indianapolis,Indiana,US,39.7601,-86.1639,America/Indiana/Indianapolis,211,retractable,fieldturf
+IND99,RCA Dome,Indianapolis,Indiana,US,39.7636,-86.1631,America/Indiana/Indianapolis,232,dome,astroturf
+JAX00,EverBank Stadium (Alltel Stadium),Jacksonville,Florida,US,30.3239,-81.6373,America/New_York,0,outdoors,grass
+KAN00,Arrowhead Stadium,Kansas City,Missouri,US,39.0489,-94.4839,America/Chicago,259,outdoors,grass
+LAX01,SoFi Stadium,Inglewood,California,US,33.9535,-118.3392,America/Los_Angeles,40,dome,matrixturf
+LAX97,Dignity Health Sports Park (StubHub Center),Carson,California,US,33.8644,-118.2611,America/Los_Angeles,23,outdoors,grass
+LAX99,Los Angeles Memorial Coliseum,Los Angeles,California,US,34.0141,-118.2879,America/Los_Angeles,43,outdoors,grass
+LON00,Wembley Stadium,London,England,GB,51.556,-0.2796,Europe/London,46,outdoors,grass
+LON01,Twickenham Stadium,London,England,GB,51.456,-0.3415,Europe/London,7,outdoors,grass
+LON02,Tottenham Hotspur Stadium,London,England,GB,51.6043,-0.0664,Europe/London,13,outdoors,grass
+MAD01,Santiago Bernabeu,Madrid,Madrid,ES,40.4531,-3.6883,Europe/Madrid,716,retractable,fieldturf
+MEL00,Melbourne Cricket Ground,Melbourne,Victoria,AU,-37.82,144.9834,Australia/Melbourne,13,outdoors,grass
+MEX00,Estadio Azteca,Mexico City,Mexico City,MX,19.3029,-99.1505,America/Mexico_City,2245,outdoors,grass
+MIA00,Hard Rock Stadium,Miami Gardens,Florida,US,25.958,-80.2389,America/New_York,5,outdoors,grass
+MIN00,Hubert H. Humphrey Metrodome,Minneapolis,Minnesota,US,44.9739,-93.2581,America/Chicago,253,dome,fieldturf
+MIN01,U.S. Bank Stadium,Minneapolis,Minnesota,US,44.9736,-93.2575,America/Chicago,254,dome,sportturf
+MIN98,TCF Bank Stadium (Huntington Bank Stadium),Minneapolis,Minnesota,US,44.9765,-93.2246,America/Chicago,253,outdoors,fieldturf
+MUN01,FC Bayern Munich Stadium (Allianz Arena),Munich,Bavaria,DE,48.2188,11.6247,Europe/Berlin,491,outdoors,fieldturf
+NAS00,Nissan Stadium,Nashville,Tennessee,US,36.1665,-86.7713,America/Chicago,122,outdoors,grass
+NOR00,Caesars Superdome,New Orleans,Louisiana,US,29.9511,-90.0812,America/Chicago,23,dome,sportturf
+NYC00,Giants Stadium,East Rutherford,New Jersey,US,40.8122,-74.077,America/New_York,2,outdoors,fieldturf
+NYC01,MetLife Stadium,East Rutherford,New Jersey,US,40.8135,-74.0745,America/New_York,4,outdoors,fieldturf
+OAK00,Oakland Coliseum,Oakland,California,US,37.7516,-122.2005,America/Los_Angeles,-6,outdoors,grass
+PAR00,Stade de France,Saint-Denis,Ile-de-France,FR,48.9245,2.3602,Europe/Paris,33,outdoors,sportturf
+PHI00,Lincoln Financial Field,Philadelphia,Pennsylvania,US,39.9008,-75.1675,America/New_York,0,outdoors,grass
+PHI99,Veterans Stadium,Philadelphia,Pennsylvania,US,39.9067,-75.1711,America/New_York,6,outdoors,fieldturf
+PHO00,State Farm Stadium (University of Phoenix Stadium),Glendale,Arizona,US,33.5276,-112.2626,America/Phoenix,328,retractable,grass
+PHO99,Sun Devil Stadium,Tempe,Arizona,US,33.4264,-111.9325,America/Phoenix,359,outdoors,grass
+PIT00,Acrisure Stadium (Heinz Field),Pittsburgh,Pennsylvania,US,40.4468,-80.0158,America/New_York,229,outdoors,grass
+PIT99,Three Rivers Stadium,Pittsburgh,Pennsylvania,US,40.4467,-80.0128,America/New_York,222,outdoors,astroturf
+RIO00,Maracana Stadium,Rio de Janeiro,Rio de Janeiro,BR,-22.9122,-43.2302,America/Sao_Paulo,15,outdoors,grass
+SAN00,Alamodome,San Antonio,Texas,US,29.417,-98.4789,America/Chicago,195,dome,fieldturf
+SAO00,Arena Corinthians,Sao Paulo,Sao Paulo,BR,-23.5453,-46.4742,America/Sao_Paulo,779,outdoors,grass
+SDG00,Qualcomm Stadium,San Diego,California,US,32.7831,-117.1196,America/Los_Angeles,18,outdoors,grass
+SEA00,Lumen Field (CenturyLink Field),Seattle,Washington,US,47.5952,-122.3316,America/Los_Angeles,11,outdoors,fieldturf
+SEA98,Kingdome,Seattle,Washington,US,47.5953,-122.3317,America/Los_Angeles,10,dome,astroturf
+SEA99,Husky Stadium,Seattle,Washington,US,47.6503,-122.3016,America/Los_Angeles,18,outdoors,fieldturf
+SFO00,Candlestick Park,San Francisco,California,US,37.7136,-122.3863,America/Los_Angeles,16,outdoors,grass
+SFO01,Levi's Stadium,Santa Clara,California,US,37.403,-121.97,America/Los_Angeles,3,outdoors,grass
+STL00,Edward Jones Dome,St. Louis,Missouri,US,38.6328,-90.1885,America/Chicago,150,dome,astroturf
+TAM00,Raymond James Stadium,Tampa,Florida,US,27.9759,-82.5033,America/New_York,15,outdoors,grass
+VEG00,Allegiant Stadium,Paradise,Nevada,US,36.0909,-115.1833,America/Los_Angeles,665,dome,grass
+WAS00,Northwest Stadium (FedExField),Landover,Maryland,US,38.9077,-76.8645,America/New_York,68,outdoors,grass

@@ -63,3 +63,21 @@ Hand-made reference CSVs in `transform/seeds/`, loaded by `dbt seed` from Phase 
 | ------------------- | -------------------- | ------------- | --------------------------------------------------------------- |
 | `stadiums.csv`      | stadium              | `stadium_id`  | Coordinates, IANA time zone, altitude, roof and surface (1.5)   |
 | `team_code_map.csv` | old team code        | `old_code`    | Maps relocated teams' codes to today's code, e.g. OAK→LV (1.4)  |
+
+### stadiums.csv
+
+One row per `stadium_id` used in `raw.schedules` (67 as of 2026). Columns:
+
+| Column | Meaning |
+| ------ | ------- |
+| `stadium_id`, `name` | nflverse's id; the current name, with the old one in brackets |
+| `city`, `region`, `country` | The stadium's actual municipality (e.g. Foxborough, East Rutherford, Santa Clara), state/province, ISO country code |
+| `latitude`, `longitude` | Centre of the field |
+| `timezone` | IANA zone name (e.g. `America/Phoenix`, which skips daylight saving time) |
+| `altitude_m` | Elevation from Open-Meteo's elevation API, metres |
+| `roof` | Physical roof type: `outdoors`, `dome` or `retractable`. Whether a retractable roof was open for a game comes from schedules. |
+| `surface` | Most common non-blank surface in schedules for that stadium, in nflverse's vocabulary |
+
+`pipeline/validate_stadiums.py` checks every row: ids match schedules both ways, the time zone matches `timezonefinder` for the coordinates, and the stadium is within 30 km of its geocoded municipality.
+
+nflverse lists several upcoming 2026 international games with placeholder roofs (Melbourne Cricket Ground, Allianz Arena and Stade de France as `dome`; Bernabeu blank). The CSV records their real roof types.

@@ -56,3 +56,8 @@ Where the project deviates from `docs/build-plan.md`, and why. Newest last. Wher
 
 - **Changed:** steps marked **You try first** (and Done-when SQL checks) are no longer hand-backs. Claude Code writes the solution with clause-by-clause comments, and walks through it after the check passes. `CLAUDE.md` is updated to match.
 - **Why:** Rob would rather keep the build moving and learn query-building afterwards from finished, working, commented queries.
+
+## 2026-10-16 — stadiums.csv: region column and physical roof type (step 1.5)
+
+- **Changed:** `stadiums.csv` has a `region` (state/province) column, and its `roof` column holds the stadium's physical roof type (`outdoors` / `dome` / `retractable`) rather than the most common per-game value from schedules. `requests` was added as a dependency and `timezonefinder` as a dev dependency.
+- **Why:** `region` lets the geocoding check tell Arlington, TX from Arlington, VA. Per-game roof values describe a game's state (`open` / `closed`) and include wrong placeholders for upcoming 2026 international games; the seed describes the building.

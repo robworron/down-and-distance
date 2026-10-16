@@ -175,7 +175,7 @@ Goal: every source loaded into `raw`, repeatable with one command, and checked.
   - Done when: the count is unchanged after the second run and the edited row is restored.
 - [x] **1.4 Load teams.** nflverse team data (names, divisions, conferences, colours, logos) into `raw.teams`.
   - Done when: every team code in `raw.schedules` matches a team, or appears in a written relocation map (OAK→LV, SD→LAC, STL→LA).
-- [ ] **1.5 Build the stadiums CSV.** `transform/seeds/stadiums.csv`: one row per `stadium_id` in schedules, with name, latitude, longitude, IANA time zone, altitude, roof type and surface.
+- [x] **1.5 Build the stadiums CSV.** `transform/seeds/stadiums.csv`: one row per `stadium_id` in schedules, with name, latitude, longitude, IANA time zone, altitude, roof type and surface.
   - Learn: reference data; why `America/Phoenix` beats "UTC−7" (Arizona skips daylight saving time).
   - Done when: no game has a `stadium_id` missing from the CSV, and 5 coordinates are spot-checked on a map.
 - [ ] **1.6 Fetch weather from Open-Meteo.** Four sub-steps:

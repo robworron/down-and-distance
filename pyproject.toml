@@ -8,5 +8,11 @@ dependencies = [
     "psycopg[binary]>=3.3.6",
     "pyarrow>=26.0.0",
     "python-dotenv>=1.2.4",
+    "requests>=2.34.2",
     "sqlalchemy>=2.1.4",
+]
+
+[dependency-groups]
+dev = [
+    "timezonefinder>=9.0.0",
 ]
