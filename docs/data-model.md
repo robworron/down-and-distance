@@ -32,6 +32,17 @@ How the database is laid out, table by table. Three schemas, one per layer:
 
 Every game since 1999, regular season and playoffs, including scheduled games not yet played. `game_id` looks like `2017_14_IND_BUF` (season, week, away team, home team).
 
+Idempotency proof (step 1.3, 2026-10-16, local):
+
+| Test | Load | Result |
+| ---- | ---- | ------ |
+| Rerun 1999–2026 back to back | `--seasons 1999-2026` | 0 inserted, 0 updated, 7548 unchanged, 0 deleted; count stays 7548 |
+| Set `2017_14_IND_BUF` home score to 99 | `--seasons 2017` | 1 updated; score back to 13 |
+| Insert fake game `2017_99_XXX_YYY` | `--seasons 2018` | 0 deleted; the fake 2017 row survives (other seasons untouched) |
+| Same fake row still present | `--seasons 2017` | 1 deleted; the row is gone, count back to 7548 |
+
+An earlier rerun reported 2 updated: the betting lines for two upcoming 2026 games had moved at the source. That is a real change, not a broken load.
+
 #### raw.teams
 
 Team names, conference, division, colours and logos. Keyed on `team_abbr`, which includes old codes for relocated teams (OAK, SD, STL), so every code in schedules resolves.

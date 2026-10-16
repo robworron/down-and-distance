@@ -170,7 +170,7 @@ Goal: every source loaded into `raw`, repeatable with one command, and checked.
   - Learn: upserts (`INSERT … ON CONFLICT … DO UPDATE`).
   - Note: the Phase 0 loader replaces `raw.schedules` on every run (`if_exists="replace"`). This step must switch it to an upsert, so rows are updated in place and the table (and its grants) is never dropped.
   - Done when: regular-season games per season are 248 for 1999–2001 (31 teams), 256 for 2002–2020 and 272 from 2021.
-- [ ] **1.3 Prove the load is idempotent.** Run it twice; edit one row by hand; run it again.
+- [x] **1.3 Prove the load is idempotent.** Run it twice; edit one row by hand; run it again.
   - Learn: idempotency, and why it makes a failed job safe to rerun.
   - Done when: the count is unchanged after the second run and the edited row is restored.
 - [ ] **1.4 Load teams.** nflverse team data (names, divisions, conferences, colours, logos) into `raw.teams`.
