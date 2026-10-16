@@ -163,7 +163,7 @@ Checkpoint: you can sketch the architecture and explain what travels along each 
 
 Goal: every source loaded into `raw`, repeatable with one command, and checked.
 
-- [ ] **1.1 Set raw-layer conventions.** Raw tables copy the source as-is, plus a `_loaded_at` timestamp. Choose each table's primary key.
+- [x] **1.1 Set raw-layer conventions.** Raw tables copy the source as-is, plus a `_loaded_at` timestamp. Choose each table's primary key.
   - Learn: raw vs cleaned data; primary keys.
   - Done when: `docs/data-model.md` lists each raw table and its key.
 - [ ] **1.2 Load all schedules, 1999 to present.** The loader takes a `--seasons` argument and upserts on `game_id`.
