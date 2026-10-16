@@ -150,7 +150,7 @@ Goal: one table travels from nflverse to Python to Postgres to Next.js to a live
 - [x] **0.8 Create the Neon database.** New Neon project; run the 0.5 loader against it by switching `DATABASE_URL`.
   - Learn: environment variables as the switch between local and production.
   - Done when: Neon's SQL editor also returns 285.
-- [ ] **0.9 Deploy to Vercel.** Import the repo, set the root directory to `web/`, add Neon's pooled connection string as `DATABASE_URL`.
+- [x] **0.9 Deploy to Vercel.** Import the repo, set the root directory to `web/`, add Neon's pooled connection string as `DATABASE_URL`.
   - Learn: build time vs run time; connection pooling.
   - Done when: a public URL shows the games.
 - [ ] **0.10 Give the website a read-only user.** Create a `web_reader` role that can only `SELECT`, and swap it into Vercel. For now it reads `raw.schedules`; in 4.1 it moves to `marts` only.
