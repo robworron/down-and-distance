@@ -173,7 +173,7 @@ Goal: every source loaded into `raw`, repeatable with one command, and checked.
 - [x] **1.3 Prove the load is idempotent.** Run it twice; edit one row by hand; run it again.
   - Learn: idempotency, and why it makes a failed job safe to rerun.
   - Done when: the count is unchanged after the second run and the edited row is restored.
-- [ ] **1.4 Load teams.** nflverse team data (names, divisions, conferences, colours, logos) into `raw.teams`.
+- [x] **1.4 Load teams.** nflverse team data (names, divisions, conferences, colours, logos) into `raw.teams`.
   - Done when: every team code in `raw.schedules` matches a team, or appears in a written relocation map (OAK→LV, SD→LAC, STL→LA).
 - [ ] **1.5 Build the stadiums CSV.** `transform/seeds/stadiums.csv`: one row per `stadium_id` in schedules, with name, latitude, longitude, IANA time zone, altitude, roof type and surface.
   - Learn: reference data; why `America/Phoenix` beats "UTC−7" (Arizona skips daylight saving time).
