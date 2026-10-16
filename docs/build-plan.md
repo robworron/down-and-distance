@@ -147,7 +147,7 @@ Goal: one table travels from nflverse to Python to Postgres to Next.js to a live
 - [x] **0.7 Read the table from Next.js.** A Server Component queries `raw.schedules` and renders a plain HTML table.
   - Learn: Server Components; why the database password never reaches the browser.
   - Done when: the page lists the 2025 games.
-- [ ] **0.8 Create the Neon database.** New Neon project; run the 0.5 loader against it by switching `DATABASE_URL`.
+- [x] **0.8 Create the Neon database.** New Neon project; run the 0.5 loader against it by switching `DATABASE_URL`.
   - Learn: environment variables as the switch between local and production.
   - Done when: Neon's SQL editor also returns 285.
 - [ ] **0.9 Deploy to Vercel.** Import the repo, set the root directory to `web/`, add Neon's pooled connection string as `DATABASE_URL`.
