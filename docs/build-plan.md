@@ -233,7 +233,7 @@ Goal: one `team_games` table with a row per team per game, carrying every situat
 - [x] **2.9 Form features with window functions.** Previous result, win/loss streak, after a blowout loss, games since bye, consecutive road games. These feed the v1.1 situations and the models.
   - Learn: `LAG`, `ROW_NUMBER`, `PARTITION BY` — staple interview topics.
   - Done when: one team's full season reads correctly row by row.
-- [ ] **2.10 Situation registry.** A `situations.csv` seed: key, label, category, column, values, description, `in_v1`.
+- [x] **2.10 Situation registry.** A `situations.csv` seed: key, label, category, column, values, description, `in_v1`.
   - Learn: config-driven design: the website builds its filters from this table, so a new situation needs no new page code.
   - Done when: all 12 v1 situations are listed and each column exists in `team_games`.
 - [ ] **2.11 Split marts.** `mart_team_splits` and `mart_league_splits` per season per situation value, storing sums and counts rather than averages.

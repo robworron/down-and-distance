@@ -1,0 +1,14 @@
+key,label,category,level,column_name,value_list,description,in_v1
+venue,Venue,venue,team,venue,home|away|neutral,"Home, away or a neutral site (international games, Super Bowls). At a neutral site both teams are neutral.",true
+roof,Roof,stadium,game,roof_type,outdoors|dome|retractable_open|retractable_closed,"The stadium's roof and, for a retractable roof, whether it was open.",true
+surface,Surface,stadium,game,surface_type,grass|turf,Natural grass (hybrids included) or artificial turf.,true
+temperature,Temperature,weather,game,temperature_bucket,32_or_below|33_to_50|51_to_79|80_or_above,"Average temperature over the game window, in °F. Open-air games only.",true
+precipitation,Precipitation,weather,game,precipitation_bucket,none|light_rain|heavy_rain|snow,"Rain or snow over the game window: light rain from 0.01 in, heavy from 0.10 in, any snow. Open-air games only.",true
+wind,Wind,weather,game,wind_bucket,under_10|10_to_14|15_plus,"Strongest wind over the game window, in mph. Open-air games only.",true
+time_slot,Time slot,schedule,game,time_slot,tnf|sunday_early|sunday_late|snf|mnf|saturday|other,Kickoff day and time in Eastern time.,true
+primetime,Primetime,schedule,game,is_primetime,true|false,Kickoff at 7 pm ET or later.,true
+rest,Rest,schedule,team,rest_bucket,short|normal|extra|bye,"Days since the team's previous game: 5 or fewer, 6-8, 9-12, or 13 or more (off a bye).",true
+time_zone_travel,Time-zone travel,travel,team,time_zone_travel,none|eastbound_1_3|westbound_1_3|long_haul_4_plus,"Time zones between the team's home stadium and the game, at kickoff.",true
+body_clock,Body clock,travel,team,body_clock,morning|afternoon|late_afternoon|night,"Kickoff time on the team's home clock: before noon, noon to 3:59 pm, 4 to 6:59 pm, or 7 pm and later.",true
+opponent_type,Opponent type,matchup,game,opponent_type,divisional|conference|non_conference,"A divisional opponent, another team in the same conference, or a team from the other conference.",true
+spread_role,Spread role,matchup,team,spread_role,big_favourite|favourite|pickem|underdog|big_underdog,"The team's pre-game point spread: favoured by 7 or more, by 3 to 6.5, within 3 either way, or the underdog by 3 to 6.5, or by 7 or more.",true

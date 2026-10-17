@@ -181,3 +181,13 @@ Where the project deviates from `docs/build-plan.md`, and why. Newest last. Wher
 - **Rest:** `games_since_bye` counts from the last game after 13+ days off (as `rest_bucket` defines a bye, playoff byes included) or from the season start.
 - **Road games:** `consecutive_road_games` counts this game, because its venue is known in advance, and treats a neutral site as a road game.
 - **Entering the game (Rob's revision):** every feature uses only earlier results plus this game's schedule, so the columns are valid before kickoff, as Phase 6's models require. `data-model.md` explains why.
+
+## 2026-10-17 — Situation registry (step 2.10)
+
+- **Changed:**
+  - `situations.csv` has the plan's columns with two renames: `column` → `column_name` and `values` → `value_list` (pipe-separated, in display order), because both are SQL keywords.
+  - It loads into `marts`, not `staging`, because the website reads it.
+  - It has 13 rows: the plan's 12 situations, with time slot's primetime flag as its own filter.
+- **Level (Rob's revision):** a `level` column marks each situation `game` (the same for both teams) or `team` (can differ). League-level win % is only meaningful for team-level situations; game-level ones are compared on scoring and over/under rate (`data-model.md`, and the parking lot for Phase 4).
+- **Generated SQL:** the `situation_registry()` macro reads the seed with `run_query` while dbt runs, so tests (and 2.11's split marts) loop over the registry instead of listing situations by hand. dbt can't see references made inside those loops while parsing, so each caller declares them with `-- depends_on:` comments.
+- **Why:** one table drives the site's filters, the split marts and their tests, so adding a situation is a CSV row plus its column.

@@ -41,6 +41,12 @@ seeds:
       +column_types:
         old_code: text
         current_code: text
+    situations:
+      # The situation registry (step 2.10). The website builds its filters
+      # from it, so it lives in marts beside the tables the site reads.
+      +schema: marts
+      +column_types:
+        in_v1: boolean
     schedule_corrections:
       # All text: "21:00" must stay a string, and a blank corrected_value loads
       # as NULL (meaning "unknown").

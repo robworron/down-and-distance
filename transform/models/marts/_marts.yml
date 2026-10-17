@@ -1,5 +1,32 @@
 version: 2
 
+seeds:
+  - name: situations
+    description: The situation registry (step 2.10), one row per situation the site can filter on. The website builds its filters from it and the split marts generate their SQL from it. level is game (same for both teams) or team (can differ).
+    columns:
+      - name: key
+        data_tests: [unique, not_null]
+      - name: label
+        data_tests: [not_null]
+      - name: category
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [venue, stadium, weather, schedule, travel, matchup]
+      - name: level
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [game, team]
+      - name: column_name
+        data_tests: [unique, not_null]
+      - name: value_list
+        data_tests: [not_null]
+      - name: in_v1
+        data_tests: [not_null]
+
 models:
   - name: games
     description: One row per game since 1999 with every game-level situation bucketed. Weather is NULL unless the game was played in the open.
