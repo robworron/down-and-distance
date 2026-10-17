@@ -178,7 +178,7 @@ Goal: every source loaded into `raw`, repeatable with one command, and checked.
 - [x] **1.5 Build the stadiums CSV.** `transform/seeds/stadiums.csv`: one row per `stadium_id` in schedules, with name, latitude, longitude, IANA time zone, altitude, roof type and surface.
   - Learn: reference data; why `America/Phoenix` beats "UTC−7" (Arizona skips daylight saving time).
   - Done when: no game has a `stadium_id` missing from the CSV, and 5 coordinates are spot-checked on a map.
-- [ ] **1.6 Fetch weather from Open-Meteo.** Four sub-steps:
+- [x] **1.6 Fetch weather from Open-Meteo.** Four sub-steps:
   - 1.6a Convert each kickoff from Eastern time to UTC.
   - 1.6b Fetch one game's hourly weather and read the JSON by eye.
   - 1.6c Batch requests per stadium per season, caching responses to disk.

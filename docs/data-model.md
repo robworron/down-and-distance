@@ -49,7 +49,23 @@ Team names, conference, division, colours and logos. Keyed on `team_abbr`, which
 
 #### raw.game_weather
 
-Weather at each game's stadium, fetched from Open-Meteo at the kickoff hour. Columns are defined in step 1.6.
+Weather at each game's stadium from Open-Meteo's historical archive (ERA5 reanalysis). One row per finished game from 2000 on (1999 has no kickoff times) outside a fixed dome; retractable-roof games are included, since the open/closed state comes from schedules. Loaded by `pipeline/load_weather.py`; key `game_id`, stale rows deleted per `season`.
+
+| Column | Meaning |
+| ------ | ------- |
+| `game_id`, `season` | From schedules |
+| `kickoff_utc` | `gameday` + `gametime` (US Eastern) converted to UTC; the kickoff hour `k` is this rounded to the nearest hour, half-hours rounding up |
+| `latitude`, `longitude` | The stadium's coordinates from `stadiums.csv` |
+| `temperature_f`, `precipitation_in`, `snowfall_in`, `wind_mph`, `wind_gust_mph` | **Kickoff hour**: values at hour `k` |
+| `temperature_avg_f` | **Game window**: mean of hours `k`…`k+3` |
+| `wind_max_mph`, `wind_gust_max_mph` | **Game window**: max of hours `k`…`k+3` (10 m wind speed and gusts) |
+| `precipitation_total_in`, `snowfall_total_in` | **Game window**: sum of hours `k+1`…`k+3` |
+
+Open-Meteo's hourly precipitation and snowfall are totals for the *preceding* hour, so the value at `k` covers the hour before kickoff and the sum of `k+1`…`k+3` covers exactly the three hours after it. Temperature and wind are instantaneous readings.
+
+**Phase 2 buckets (temperature, precipitation, wind) should use the game-window values**, which describe the conditions the game was played in. The kickoff-hour values are kept for comparison with nflverse's `temp` and `wind`.
+
+Checks at load (step 1.6, 2026-10-16, local): 100% of finished outdoor and open-roof games from 2000 have weather (5,309 of 5,309; `pipeline/sql/checks/weather_coverage.sql`). Against nflverse's `temp` over 5,054 games: correlation 0.978, mean gap −0.3 °F, median absolute gap 1.9 °F (`weather_vs_nflverse_temp.sql`). The 2017 Colts–Bills snow game shows 0.25 in of snow in the kickoff hour and 0.99 in over the game window.
 
 #### raw.pbp
 
