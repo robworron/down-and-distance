@@ -6,7 +6,7 @@ import { getSchedules } from "@/lib/queries";
 async function ScheduleTable() {
   // Query at request time, not at build time.
   await connection();
-  const games = await getSchedules();
+  const games = await getSchedules(2025);
 
   return (
     <>

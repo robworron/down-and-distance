@@ -13,11 +13,16 @@ export type ScheduleRow = {
   home_score: number | null;
 };
 
-export async function getSchedules(): Promise<ScheduleRow[]> {
+export async function getSchedules(season: number): Promise<ScheduleRow[]> {
+  // raw.schedules stores these as bigint, which the pg driver returns as
+  // strings; ::int brings them back as numbers.
   const { rows } = await pool.query<ScheduleRow>(
-    `SELECT game_id, game_type, week, gameday, away_team, home_team, away_score, home_score
+    `SELECT game_id, game_type, week::int AS week, gameday, away_team, home_team,
+            away_score::int AS away_score, home_score::int AS home_score
      FROM raw.schedules
+     WHERE season = $1
      ORDER BY gameday, game_id`,
+    [season],
   );
   return rows;
 }
