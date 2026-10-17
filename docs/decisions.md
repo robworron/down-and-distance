@@ -161,3 +161,14 @@ Where the project deviates from `docs/build-plan.md`, and why. Newest last. Wher
 - **Body clock (Rob's choice):** kickoff on the team's home clock, bucketed at noon, 4 pm and 7 pm into `morning` / `afternoon` / `late_afternoon` / `night`, on every row; for the home team it's local time. Over finished games: 789 / 9,293 / 2,049 / 2,063, plus 518 from 1999 with no kickoff time.
 - **Distance:** `travel_miles`, the haversine distance on a sphere of radius 3,958.8 miles, rounded. Teams playing at their own stadium read 0, including the Jets and Chargers on the road at the stadium they share.
 - **Why:** these are the plan's v1 situations 9 and 10, plus the plan's travel distance, with the edge cases (DST, the date line, 1999, shared stadiums) decided once here.
+
+## 2026-10-17 — Game stats from play-by-play (step 2.8)
+
+- **Two kinds of play count:**
+  - `plays` and `yards` follow the official box score: passes, runs (scrambles included), kneels and spikes; no penalty no-plays, no two-point tries.
+  - EPA/play, success rate and pass rate use real plays: nflverse's `pass` / `rush` flags, which leave out kneels and spikes but keep penalised snaps (the nflfastR convention), with two-point tries left out.
+  - The plan's "filter to real plays" applies to the efficiency stats. The box score counts kneels: Kansas City's two kneel-downs at the end of Super Bowl LVII are why its yards are 340, not 347.
+- **Turnovers:** interceptions thrown plus fumbles lost. The trimmed play-by-play has no fumbling-team column, so a lost fumble is charged to the receiving team on punts, to the intercepting team on interception returns, and to `posteam` otherwise (the offense, or the receiving team on kickoffs). This agrees with the play text on 99.7% of 2,981 lost fumbles since 2016; the rest are multi-fumble plays.
+- **Known gap:** nflverse files 24 intentional groundings since 2016 as `no_play`; the box score counts them as pass attempts. `plays` can be 1 below the official total in those games (Pittsburgh, 2025-09-14: 58 against 59). Their texts vary, and one even says "no intentional grounding because of defensive holding", so no rule was added for them.
+- **Defense** is the opponent's offense in the same game, joined rather than recomputed, so the two always agree.
+- **Why:** both checked games match ESPN's official team stats on every figure except that one grounding play, so the site's yards, turnovers, 3rd-down and red-zone numbers will match what fans see in published box scores.

@@ -227,7 +227,7 @@ Goal: one `team_games` table with a row per team per game, carrying every situat
 - [x] **2.7 Travel and body-clock features.** Each team's home stadium per season; time zones crossed and direction at kickoff; kickoff hour in the visiting team's zone; travel distance.
   - Learn: time-zone arithmetic; the haversine distance formula in SQL.
   - Done when: a Seattle road game at 1:00 pm ET shows a 10:00 am body clock and 3 zones eastbound, and an Arizona–Rams game shows 0 zones in October and 1 in December.
-- [ ] **2.8 Game stats from play-by-play.** One row per team per game: plays, EPA/play on offense and defense, success rate, yards/play, pass rate, turnovers, sacks, 3rd-down %, red-zone TD %, penalties.
+- [x] **2.8 Game stats from play-by-play.** One row per team per game: plays, EPA/play on offense and defense, success rate, yards/play, pass rate, turnovers, sacks, 3rd-down %, red-zone TD %, penalties.
   - Learn: aggregation; filtering to real plays (no kneels or spikes); a team's defense is its opponent's offense.
   - Done when: one game's yards and turnovers match its official box score.
 - [ ] **2.9 Form features with window functions.** Previous result, win/loss streak, after a blowout loss, games since bye, consecutive road games. These feed the v1.1 situations and the models.

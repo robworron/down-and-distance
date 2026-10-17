@@ -207,6 +207,34 @@ One row per team per season (893 as of 2026-10-17), key `(team, season)`: the st
 
 **Tests:** `unique_combination` on `(team, season)`; `not_null`; `relationships` to `stg_teams` and `stadiums`.
 
+### team_game_stats
+
+One row per team per game with play-by-play (5,682 rows, 2,841 games, 2016 to 2026 week 6), key `(game_id, team)`. Built from `stg_pbp`: what the team's offense did, and what its defense allowed, which is simply the opponent's offense in the same game (a self-join). **Sums and counts only:** rates are computed over whatever games you pick, e.g. EPA/play = `sum(epa) / sum(dropbacks + rushes)`.
+
+| Column | Rule |
+| ------ | ---- |
+| `plays`, `yards` | Box-score rules: pass, run (scrambles are runs), kneel and spike snaps; no penalty no-plays, no two-point tries. `yards` is total net yards (sacks subtract); yards/play = `yards / plays` |
+| `dropbacks`, `rushes` | "Real" plays: nflverse's `pass` / `rush` flags with EPA known, no two-point tries. Leaves out kneels and spikes, keeps penalised snaps (their EPA includes the penalty). Pass rate = `dropbacks / (dropbacks + rushes)` |
+| `epa`, `successes` | Summed over real plays; success rate = `successes / (dropbacks + rushes)` |
+| `third_down_attempts`, `third_down_conversions` | nflverse's third-down flags |
+| `red_zone_trips`, `red_zone_tds` | Drives with a snap (or field-goal try) from the opponent's 20 or closer; TDs = those drives ending in a touchdown. Extra points and two-point tries don't count |
+| `sacks_taken`, `interceptions`, `fumbles_lost`, `turnovers` | Turnovers = interceptions thrown + fumbles lost. A lost fumble is charged to the receiving team on punts and to the intercepting team on interception returns, otherwise to `posteam`; on kickoffs `posteam` is the receiving team. Matches the play text's "RECOVERED by" on 99.7% of lost fumbles |
+| `penalties`, `penalty_yards` | Accepted penalties charged to this team, on any play |
+| `def_plays`, `def_yards`, `def_dropbacks`, `def_rushes`, `def_epa`, `def_successes`, `sacks`, `takeaways` | The opponent's `plays`, `yards`, `dropbacks`, `rushes`, `epa`, `successes`, `sacks_taken`, `turnovers` |
+
+**Checked against official box scores** (ESPN team stats, step 2.8):
+- Super Bowl LVII matches on every figure: plays 53/72, yards 340/417, 3rd down 4-8/11-18, red zone 4-5/3-5, penalties 3-14/6-33, sacks 0/2, turnovers 0/1.
+- Seattle at Pittsburgh on 2025-09-14 matches on every figure but one. Pittsburgh's plays are 58 against ESPN's 59, because nflverse files Rodgers' intentional grounding as `no_play` while the box score counts it as a pass attempt. 24 plays since 2016 are filed that way; yards are unaffected.
+
+League rates come out as expected: 5.3–5.6 yards per play, EPA/play near 0, success rate about 0.44, 2020 the highest-scoring season.
+
+**Tests:**
+- `unique_combination` on `(game_id, team)`; `not_null`; `relationships` to `games` and `stg_teams`.
+- Singular:
+  - Both box scores above.
+  - Exactly two rows per game with play-by-play, each row's defense equal to the other row's offense.
+  - Interceptions, lost fumbles, sacks and penalties reconcile with `stg_pbp`'s totals, so nothing is dropped or double-charged.
+
 ### team_games
 
 Two rows per game (15,096 as of 2026-10-17), key `(game_id, team)`: each game from each team's point of view. Built from `games` with `UNION ALL` (a home branch and an away branch), then joined back to `games` for every game-level situation column above, so the splits marts read one table. Travel columns come from `team_seasons` (the team's home) and `stadiums` (the venue).
@@ -227,6 +255,7 @@ Two rows per game (15,096 as of 2026-10-17), key `(game_id, team)`: each game fr
 | `time_zone_travel` | none 10,530 · eastbound_1_3 2,231 · westbound_1_3 2,222 · long_haul_4_plus 113 | 0 none; +1 to +3 eastbound; −1 to −3 westbound; 4+ either way long haul (almost all trips to Europe) |
 | `body_clock_time` | | Kickoff on the team's home clock (Seattle at 1 pm ET: 10:00). Every row: for the home team it's local time. NULL in 1999 |
 | `body_clock` | afternoon 9,548 · night 2,125 · late_afternoon 2,085 · morning 820 · NULL 518 | Before 12:00 morning; 12:00–15:59 afternoon; 16:00–18:59 late_afternoon; 19:00 or later night |
+| `plays` … `takeaways` | | Every `team_game_stats` column (step 2.8), left-joined: NULL before 2016 and for games not yet played |
 
 **Tests:**
 - `unique_combination` on `(game_id, team)`.

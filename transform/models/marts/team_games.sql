@@ -19,6 +19,10 @@ stadiums as (
     select * from {{ ref('stadiums') }}
 ),
 
+stats as (
+    select * from {{ ref('team_game_stats') }}
+),
+
 -- Each game twice. Branch 1 is the home team's view, branch 2 the away team's:
 -- the same columns with home and away swapped. UNION ALL keeps both rows
 -- (UNION would try to de-duplicate, which is wasted work here).
@@ -218,9 +222,39 @@ select
     g.precipitation_bucket,
     g.time_slot,
     g.is_primetime,
-    g.opponent_type
+    g.opponent_type,
+
+    -- Play-by-play stats (2.8), sums and counts from team_game_stats.
+    -- NULL before 2016 and for games not yet played.
+    st.plays,
+    st.yards,
+    st.dropbacks,
+    st.rushes,
+    st.epa,
+    st.successes,
+    st.third_down_attempts,
+    st.third_down_conversions,
+    st.red_zone_trips,
+    st.red_zone_tds,
+    st.sacks_taken,
+    st.interceptions,
+    st.fumbles_lost,
+    st.turnovers,
+    st.penalties,
+    st.penalty_yards,
+    st.def_plays,
+    st.def_yards,
+    st.def_dropbacks,
+    st.def_rushes,
+    st.def_epa,
+    st.def_successes,
+    st.sacks,
+    st.takeaways
 from sides as s
 -- Join back to games for the columns both rows share, and to travel for
 -- this team's trip.
 join games as g on g.game_id = s.game_id
 join travel as t on t.game_id = s.game_id and t.team = s.team
+-- LEFT JOIN: games before 2016, or not yet played, have no play-by-play
+-- but keep their rows.
+left join stats as st on st.game_id = s.game_id and st.team = s.team

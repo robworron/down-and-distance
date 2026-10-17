@@ -78,8 +78,40 @@ models:
       - name: home_timezone
         data_tests: [not_null]
 
+  - name: team_game_stats
+    description: One row per team per game since 2016 from play-by-play, offense and defense (the opponent's offense), as sums and counts only. Box-score stats follow official rules; EPA and success use real plays (no kneels or spikes).
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [game_id, team]
+    columns:
+      - name: game_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('games')
+                field: game_id
+      - name: team
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_teams')
+                field: team_abbr
+      - name: opponent
+        data_tests: [not_null]
+      - name: plays
+        data_tests: [not_null]
+      - name: epa
+        data_tests: [not_null]
+      - name: turnovers
+        data_tests: [not_null]
+      - name: def_plays
+        data_tests: [not_null]
+
   - name: team_games
-    description: Two rows per game since 1999, one per team, with team-level fields (points, result, rest, spread from the team's side, travel and body clock) and every game-level situation.
+    description: Two rows per game since 1999, one per team, with team-level fields (points, result, rest, spread from the team's side, travel and body clock), every game-level situation, and play-by-play stats from 2016.
     data_tests:
       - unique_combination:
           arguments:
