@@ -52,6 +52,13 @@ def test_no_duplicate_keys(query, table, key):
     assert dupes.empty, f"{len(dupes)} duplicate keys in {table}"
 
 
+def test_home_away_margin_2025(query):
+    """Long format: 32 teams, each once at home and once away (step 2.1)."""
+    rows = query((CHECKS / "home_away_margin_2025.sql").read_text())
+    assert len(rows) == 64, f"{len(rows)} rows"
+    assert (rows.groupby("team")["venue"].apply(sorted).apply(tuple) == ("away", "home")).all()
+
+
 def test_weather_coverage(query):
     """Over 99% of finished games played in the open, from 2000, have weather.
 
