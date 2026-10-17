@@ -256,6 +256,19 @@ Two rows per game (15,096 as of 2026-10-17), key `(game_id, team)`: each game fr
 | `body_clock_time` | | Kickoff on the team's home clock (Seattle at 1 pm ET: 10:00). Every row: for the home team it's local time. NULL in 1999 |
 | `body_clock` | afternoon 9,548 · night 2,125 · late_afternoon 2,085 · morning 820 · NULL 518 | Before 12:00 morning; 12:00–15:59 afternoon; 16:00–18:59 late_afternoon; 19:00 or later night |
 | `plays` … `takeaways` | | Every `team_game_stats` column (step 2.8), left-joined: NULL before 2016 and for games not yet played |
+| `game_number` | 1 to 21 | The team's nth game of the season, playoffs included (`ROW_NUMBER`) |
+| `prev_result` | win 7,109 · loss 6,710 · tie 32 · NULL 1,245 | The team's previous game this season (`LAG`); NULL in game 1 or if that game isn't played yet |
+| `streak` | −15 to +18 | Run of identical results entering the game: +3 = won the last three, −2 = lost the last two, 0 after a tie, NULL with `prev_result`. The 2007 Patriots entered Super Bowl XLII at +18 |
+| `after_blowout_loss` | true 1,789 · false 12,062 · NULL 1,245 | The previous game this season was lost by 17+ points (three scores) |
+| `games_since_bye` | 0 to 17 | Games since the team last rested: a bye (13+ days off, playoff byes included) or the season start. 0 in week 1 and the first game back |
+| `consecutive_road_games` | 0 7,445 · 1 5,414 · 2 2,034 · 3+ 203 | Road games in a row, this one included; 0 at home. A neutral site is a road game (the 2020 49ers' Glendale games make the only 7) |
+
+**Form features describe the team entering the game.** Each is built from earlier games' results plus this game's schedule (rest days, venue), never from this game's own result:
+- Results are read with `LAG`, which looks one game back.
+- The two running counts (`games_since_bye`, `consecutive_road_games`) include the current row, but they read only schedule columns, which are known before kickoff.
+- The sequence restarts each season (week 1 has no previous game) and runs on through the playoffs.
+
+This matters for Phase 6: a prediction can only use what was known before kickoff. A feature that had seen the game's result would leak the answer into the model, and walk-forward backtests would then look far better than any real prediction could be. The same rule makes these columns safe to use as situations ("after a blowout loss").
 
 **Tests:**
 - `unique_combination` on `(game_id, team)`.
@@ -271,6 +284,10 @@ Two rows per game (15,096 as of 2026-10-17), key `(game_id, team)`: each game fr
   - Arizona and the Rams: 0 zones in October, ±1 in December.
   - Melbourne: −7.
   - No team at its own stadium has travelled.
+- Form (step 2.9):
+  - The 2024 Eagles' 21 games pinned row by row: the São Paulo opener as a road game, the 17-point loss at Tampa Bay feeding the first game after the bye, and the 10-game streak ended by Washington.
+  - The streak's sign always agrees with `prev_result`.
+  - `accepted_values` on `prev_result`; `not_null` on `game_number`, `games_since_bye`, `consecutive_road_games`.
 
 ## Seeds
 

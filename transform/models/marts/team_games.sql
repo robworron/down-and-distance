@@ -122,139 +122,221 @@ travel as (
                            as time_zone_shift,
         body_clock_time
     from travel_measures
+),
+
+-- Every column of a team-game row, built from the pieces above. The form
+-- features (2.9) below look across these rows, so they come after.
+team_rows as (
+    select
+        -- Identity
+        s.game_id,
+        g.season,
+        g.week,
+        g.game_type,
+        g.is_playoff,
+        g.gameday,
+        g.kickoff_et,
+        g.kickoff_utc,
+        s.team,
+        s.opponent,
+
+        -- Venue: at a neutral site neither team is home, whatever the designation.
+        s.is_home,
+        case
+            when g.is_neutral_site then 'neutral'
+            when s.is_home         then 'home'
+            else 'away'
+        end                                         as venue,
+
+        -- Result (NULL until played)
+        g.is_finished,
+        s.points_for,
+        s.points_against,
+        s.points_for - s.points_against             as margin,
+        case
+            when s.points_for > s.points_against then 'win'
+            when s.points_for < s.points_against then 'loss'
+            when s.points_for = s.points_against then 'tie'
+        end                                         as result,     -- NULL scores fall through to NULL
+        g.overtime,
+
+        -- Rest: days since each team's previous game (week 1 counts as 7).
+        -- 5 days or less is 'short', including Friday games after a Sunday.
+        s.rest_days,
+        s.rest_days - s.opponent_rest_days          as rest_diff,  -- positive = more rested than the opponent
+        case
+            when s.rest_days is null then null
+            when s.rest_days <= 5    then 'short'
+            when s.rest_days <= 8    then 'normal'
+            when s.rest_days <= 12   then 'extra'
+            else 'bye'
+        end                                         as rest_bucket,
+
+        -- Spread from this team's side: negative = favourite, e.g. -3.5.
+        s.team_spread,
+        -- Spread role (Rob's choice, 2.6): five tiers at the key numbers 3 and 7.
+        -- Checked top to bottom: -7 or more favoured, then -3 to -6.5, then
+        -- anything under 3 either way, then +3 to +6.5, then +7 or more.
+        case
+            when s.team_spread is null then null
+            when s.team_spread <= -7   then 'big_favourite'
+            when s.team_spread <= -3   then 'favourite'
+            when s.team_spread < 3     then 'pickem'
+            when s.team_spread < 7     then 'underdog'
+            else 'big_underdog'
+        end                                         as spread_role,
+        g.total_line,
+
+        -- Travel and body clock (2.7), from this team's home stadium that season.
+        -- A home game at the home stadium is 0 miles and 0 zones.
+        t.home_stadium_id,
+        t.travel_miles,
+        t.time_zone_shift,                          -- + = clock ahead of home (travelled east), - = west
+        case
+            when t.time_zone_shift is null             then null
+            when t.time_zone_shift = 0                 then 'none'
+            when t.time_zone_shift between 1 and 3     then 'eastbound_1_3'
+            when t.time_zone_shift between -3 and -1   then 'westbound_1_3'
+            else 'long_haul_4_plus'                    -- 4+ either way: almost all trips to Europe
+        end                                         as time_zone_travel,
+        t.body_clock_time,
+        -- Body clock buckets (Rob's choice, 2.7), on every row: for the home
+        -- team it's simply local time. Seattle at 1 pm ET reads 10:00, morning.
+        case
+            when t.body_clock_time is null          then null
+            when t.body_clock_time < time '12:00'   then 'morning'
+            when t.body_clock_time < time '16:00'   then 'afternoon'
+            when t.body_clock_time < time '19:00'   then 'late_afternoon'
+            else 'night'
+        end                                         as body_clock,
+
+        -- Game-level situations, the same for both teams
+        g.stadium_id,
+        g.is_neutral_site,
+        g.roof_type,
+        g.surface_type,
+        g.is_open_air,
+        g.temperature_f,
+        g.wind_mph,
+        g.precipitation_in,
+        g.snowfall_in,
+        g.temperature_bucket,
+        g.wind_bucket,
+        g.precipitation_bucket,
+        g.time_slot,
+        g.is_primetime,
+        g.opponent_type,
+
+        -- Play-by-play stats (2.8), sums and counts from team_game_stats.
+        -- NULL before 2016 and for games not yet played.
+        st.plays,
+        st.yards,
+        st.dropbacks,
+        st.rushes,
+        st.epa,
+        st.successes,
+        st.third_down_attempts,
+        st.third_down_conversions,
+        st.red_zone_trips,
+        st.red_zone_tds,
+        st.sacks_taken,
+        st.interceptions,
+        st.fumbles_lost,
+        st.turnovers,
+        st.penalties,
+        st.penalty_yards,
+        st.def_plays,
+        st.def_yards,
+        st.def_dropbacks,
+        st.def_rushes,
+        st.def_epa,
+        st.def_successes,
+        st.sacks,
+        st.takeaways
+    from sides as s
+    -- Join back to games for the columns both rows share, and to travel for
+    -- this team's trip.
+    join games as g on g.game_id = s.game_id
+    join travel as t on t.game_id = s.game_id and t.team = s.team
+    -- LEFT JOIN: games before 2016, or not yet played, have no play-by-play
+    -- but keep their rows.
+    left join stats as st on st.game_id = s.game_id and st.team = s.team
+),
+
+-- Form, step 1 (2.9): number each team's games within the season, and label
+-- its runs of identical results ("gaps and islands"). Two ROW_NUMBERs count
+-- the same games two ways: all the team's games in date order, and only the
+-- games with this same result. Through an unbroken run of wins both counts
+-- rise by one each game, so their difference stays put; a loss or tie in
+-- between makes it jump. So the difference labels each run.
+form_runs as (
+    select
+        game_id,
+        team,
+        season,
+        gameday,
+        result,
+        margin,
+        venue,
+        rest_bucket,
+        row_number() over (partition by team, season order by gameday)        as game_number,
+        row_number() over (partition by team, season order by gameday)
+          - row_number() over (partition by team, season, result order by gameday)
+                                                                               as result_run
+    from team_rows
+),
+
+-- Step 2: the streak after each game: its place within its run, signed
+-- (+ for wins, - for losses, 0 for a tie, NULL until played).
+form_streaks as (
+    select
+        *,
+        case result when 'win' then 1 when 'loss' then -1 when 'tie' then 0 end
+          * row_number() over (partition by team, season, result, result_run order by gameday)
+                                                                               as streak_after
+    from form_runs
+),
+
+-- Step 3: the features, each describing the team ENTERING the game. Window w
+-- is one team's season in date order: playoffs continue it, and it restarts
+-- each season. LAG reads the previous game's value, so nothing here sees
+-- this game's own result. The two running counts also read this game's rest
+-- days and venue, which come from the schedule and are known before kickoff.
+form as (
+    select
+        game_id,
+        team,
+        game_number,
+        lag(result)       over w                                               as prev_result,
+        lag(streak_after) over w                                               as streak,
+        -- Rob's choice (2.9): a three-score loss, 17 points or more.
+        lag(margin)       over w <= -17                                        as after_blowout_loss,
+        -- Games since the team last rested: a bye (13+ days off, as in
+        -- rest_bucket, playoff byes included) or the start of the season.
+        -- The running MAX over every game up to this one finds the last.
+        game_number - max(case when rest_bucket = 'bye' or game_number = 1 then game_number end)
+            over (w rows between unbounded preceding and current row)          as games_since_bye,
+        -- Road games in a row, this one included; 0 at home. A neutral site
+        -- counts as a road game: the team isn't in its own stadium. The
+        -- running MAX finds the team's latest home game (0 if none yet).
+        case
+            when venue = 'home' then 0
+            else game_number - coalesce(
+                max(case when venue = 'home' then game_number end)
+                    over (w rows between unbounded preceding and current row),
+                0)
+        end                                                                    as consecutive_road_games
+    from form_streaks
+    window w as (partition by team, season order by gameday)
 )
 
 select
-    -- Identity
-    s.game_id,
-    g.season,
-    g.week,
-    g.game_type,
-    g.is_playoff,
-    g.gameday,
-    g.kickoff_et,
-    g.kickoff_utc,
-    s.team,
-    s.opponent,
-
-    -- Venue: at a neutral site neither team is home, whatever the designation.
-    s.is_home,
-    case
-        when g.is_neutral_site then 'neutral'
-        when s.is_home         then 'home'
-        else 'away'
-    end                                         as venue,
-
-    -- Result (NULL until played)
-    g.is_finished,
-    s.points_for,
-    s.points_against,
-    s.points_for - s.points_against             as margin,
-    case
-        when s.points_for > s.points_against then 'win'
-        when s.points_for < s.points_against then 'loss'
-        when s.points_for = s.points_against then 'tie'
-    end                                         as result,     -- NULL scores fall through to NULL
-    g.overtime,
-
-    -- Rest: days since each team's previous game (week 1 counts as 7).
-    -- 5 days or less is 'short', including Friday games after a Sunday.
-    s.rest_days,
-    s.rest_days - s.opponent_rest_days          as rest_diff,  -- positive = more rested than the opponent
-    case
-        when s.rest_days is null then null
-        when s.rest_days <= 5    then 'short'
-        when s.rest_days <= 8    then 'normal'
-        when s.rest_days <= 12   then 'extra'
-        else 'bye'
-    end                                         as rest_bucket,
-
-    -- Spread from this team's side: negative = favourite, e.g. -3.5.
-    s.team_spread,
-    -- Spread role (Rob's choice, 2.6): five tiers at the key numbers 3 and 7.
-    -- Checked top to bottom: -7 or more favoured, then -3 to -6.5, then
-    -- anything under 3 either way, then +3 to +6.5, then +7 or more.
-    case
-        when s.team_spread is null then null
-        when s.team_spread <= -7   then 'big_favourite'
-        when s.team_spread <= -3   then 'favourite'
-        when s.team_spread < 3     then 'pickem'
-        when s.team_spread < 7     then 'underdog'
-        else 'big_underdog'
-    end                                         as spread_role,
-    g.total_line,
-
-    -- Travel and body clock (2.7), from this team's home stadium that season.
-    -- A home game at the home stadium is 0 miles and 0 zones.
-    t.home_stadium_id,
-    t.travel_miles,
-    t.time_zone_shift,                          -- + = clock ahead of home (travelled east), - = west
-    case
-        when t.time_zone_shift is null             then null
-        when t.time_zone_shift = 0                 then 'none'
-        when t.time_zone_shift between 1 and 3     then 'eastbound_1_3'
-        when t.time_zone_shift between -3 and -1   then 'westbound_1_3'
-        else 'long_haul_4_plus'                    -- 4+ either way: almost all trips to Europe
-    end                                         as time_zone_travel,
-    t.body_clock_time,
-    -- Body clock buckets (Rob's choice, 2.7), on every row: for the home
-    -- team it's simply local time. Seattle at 1 pm ET reads 10:00, morning.
-    case
-        when t.body_clock_time is null          then null
-        when t.body_clock_time < time '12:00'   then 'morning'
-        when t.body_clock_time < time '16:00'   then 'afternoon'
-        when t.body_clock_time < time '19:00'   then 'late_afternoon'
-        else 'night'
-    end                                         as body_clock,
-
-    -- Game-level situations, the same for both teams
-    g.stadium_id,
-    g.is_neutral_site,
-    g.roof_type,
-    g.surface_type,
-    g.is_open_air,
-    g.temperature_f,
-    g.wind_mph,
-    g.precipitation_in,
-    g.snowfall_in,
-    g.temperature_bucket,
-    g.wind_bucket,
-    g.precipitation_bucket,
-    g.time_slot,
-    g.is_primetime,
-    g.opponent_type,
-
-    -- Play-by-play stats (2.8), sums and counts from team_game_stats.
-    -- NULL before 2016 and for games not yet played.
-    st.plays,
-    st.yards,
-    st.dropbacks,
-    st.rushes,
-    st.epa,
-    st.successes,
-    st.third_down_attempts,
-    st.third_down_conversions,
-    st.red_zone_trips,
-    st.red_zone_tds,
-    st.sacks_taken,
-    st.interceptions,
-    st.fumbles_lost,
-    st.turnovers,
-    st.penalties,
-    st.penalty_yards,
-    st.def_plays,
-    st.def_yards,
-    st.def_dropbacks,
-    st.def_rushes,
-    st.def_epa,
-    st.def_successes,
-    st.sacks,
-    st.takeaways
-from sides as s
--- Join back to games for the columns both rows share, and to travel for
--- this team's trip.
-join games as g on g.game_id = s.game_id
-join travel as t on t.game_id = s.game_id and t.team = s.team
--- LEFT JOIN: games before 2016, or not yet played, have no play-by-play
--- but keep their rows.
-left join stats as st on st.game_id = s.game_id and st.team = s.team
+    r.*,
+    f.game_number,
+    f.prev_result,
+    f.streak,
+    f.after_blowout_loss,
+    f.games_since_bye,
+    f.consecutive_road_games
+from team_rows as r
+join form as f on f.game_id = r.game_id and f.team = r.team

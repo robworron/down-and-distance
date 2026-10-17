@@ -230,7 +230,7 @@ Goal: one `team_games` table with a row per team per game, carrying every situat
 - [x] **2.8 Game stats from play-by-play.** One row per team per game: plays, EPA/play on offense and defense, success rate, yards/play, pass rate, turnovers, sacks, 3rd-down %, red-zone TD %, penalties.
   - Learn: aggregation; filtering to real plays (no kneels or spikes); a team's defense is its opponent's offense.
   - Done when: one game's yards and turnovers match its official box score.
-- [ ] **2.9 Form features with window functions.** Previous result, win/loss streak, after a blowout loss, games since bye, consecutive road games. These feed the v1.1 situations and the models.
+- [x] **2.9 Form features with window functions.** Previous result, win/loss streak, after a blowout loss, games since bye, consecutive road games. These feed the v1.1 situations and the models.
   - Learn: `LAG`, `ROW_NUMBER`, `PARTITION BY` — staple interview topics.
   - Done when: one team's full season reads correctly row by row.
 - [ ] **2.10 Situation registry.** A `situations.csv` seed: key, label, category, column, values, description, `in_v1`.

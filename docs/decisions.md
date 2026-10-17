@@ -172,3 +172,12 @@ Where the project deviates from `docs/build-plan.md`, and why. Newest last. Wher
 - **Known gap:** nflverse files 24 intentional groundings since 2016 as `no_play`; the box score counts them as pass attempts. `plays` can be 1 below the official total in those games (Pittsburgh, 2025-09-14: 58 against 59). Their texts vary, and one even says "no intentional grounding because of defensive holding", so no rule was added for them.
 - **Defense** is the opponent's offense in the same game, joined rather than recomputed, so the two always agree.
 - **Why:** both checked games match ESPN's official team stats on every figure except that one grounding play, so the site's yards, turnovers, 3rd-down and red-zone numbers will match what fans see in published box scores.
+
+## 2026-10-17 — Form features (step 2.9)
+
+- **Sequence:** each team's games within a season in date order. The playoffs continue it, and it restarts each season, so week 1 has no previous result, streak or blowout flag. Carrying form over the offseason would have flagged 188 more week-1 games as "after a blowout loss", because of last season's final game.
+- **Blowout loss (Rob's choice):** lost the previous game by 17 or more, a three-score margin: 1,789 team-games. The other options were 14+ (2,350) and 21+ (1,188).
+- **Streak:** signed, entering the game. A tie resets it to 0.
+- **Rest:** `games_since_bye` counts from the last game after 13+ days off (as `rest_bucket` defines a bye, playoff byes included) or from the season start.
+- **Road games:** `consecutive_road_games` counts this game, because its venue is known in advance, and treats a neutral site as a road game.
+- **Entering the game (Rob's revision):** every feature uses only earlier results plus this game's schedule, so the columns are valid before kickoff, as Phase 6's models require. `data-model.md` explains why.

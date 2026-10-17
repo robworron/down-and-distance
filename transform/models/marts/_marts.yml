@@ -179,3 +179,14 @@ models:
           - accepted_values:
               arguments:
                 values: [morning, afternoon, late_afternoon, night]
+      - name: game_number
+        data_tests: [not_null]
+      - name: prev_result
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [win, loss, tie]
+      - name: games_since_bye
+        data_tests: [not_null]
+      - name: consecutive_road_games
+        data_tests: [not_null]
