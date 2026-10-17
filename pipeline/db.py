@@ -181,5 +181,9 @@ def upsert_dataframe(
             ).rowcount
 
     result = UpsertResult(inserted, affected - inserted, len(df) - affected, deleted)
-    log.info("%s.%s: %s", schema, table, result)
+    scope = ""
+    if scope_col:
+        first, last = min(scope_values), max(scope_values)
+        scope = f" ({scope_col} {first})" if first == last else f" ({scope_col} {first}-{last})"
+    log.info("%s.%s%s: %s", schema, table, scope, result)
     return result

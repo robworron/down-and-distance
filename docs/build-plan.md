@@ -192,7 +192,7 @@ Goal: every source loaded into `raw`, repeatable with one command, and checked.
   - 1.7d Add indexes on `game_id` and `(season, posteam)`.
   - Learn: indexes; storage budgets.
   - Done when: every play-by-play `game_id` exists in schedules and the table leaves plenty of Neon headroom.
-- [ ] **1.8 One command runs it all.** For example `uv run python -m pipeline ingest`; by default it reloads only the current season.
+- [x] **1.8 One command runs it all.** For example `uv run python -m pipeline ingest`; by default it reloads only the current season.
   - Learn: entry points; incremental vs full loads; logging.
   - Done when: one command loads everything and a second run changes nothing.
 - [ ] **1.9 Write data checks.** pytest checks for row counts, duplicate keys, weather coverage and orphan games.

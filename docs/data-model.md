@@ -19,6 +19,19 @@ How the database is laid out, table by table. Three schemas, one per layer:
 - **Integers stay integers.** Columns that are integers at the source are stored as integers even when they contain nulls.
 - **Loads are idempotent.** Running the same load twice changes nothing the second time.
 
+### Loading
+
+One command loads every raw table, in dependency order (schedules, teams, weather, play-by-play):
+
+```
+uv run python -m pipeline ingest                       # current season only (the nightly job)
+uv run python -m pipeline ingest --full                # schedules 1999-, weather 2000-, play-by-play 2016-
+uv run python -m pipeline ingest --seasons 2020-2022   # chosen seasons
+uv run python -m pipeline ingest --only weather,pbp    # a subset of tables
+```
+
+Each table logs inserted / updated / unchanged / deleted counts. A second run straight after the first logs no changes (step 1.8). On the season in progress, a run a few hours later can update a handful of upcoming games, because betting lines move.
+
 ### Tables
 
 | Table              | Source                         | Grain (one row per…)  | Primary key           | Seasons          |
