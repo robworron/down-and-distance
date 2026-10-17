@@ -67,3 +67,13 @@ Where the project deviates from `docs/build-plan.md`, and why. Newest last. Wher
 - **Changed:** `raw.game_weather` starts in 2000, because nflverse has no kickoff time for any 1999 game. The 99% coverage check covers games with a known kickoff time. Beside the kickoff-hour values, each game also stores game-window values from kickoff to kickoff + 3 hours: average temperature, maximum wind and gusts, and total precipitation and snowfall. Weather is skipped for fixed domes, using `stadiums.csv`'s physical roof type.
 - **Why:** an hour can't be matched without a kickoff time. A single kickoff-hour reading misses rain or snow that starts mid-game, so Phase 2 buckets use the window values.
 - **Also:** the kickoff hour is the nearest UTC hour with half-hours rounding *up*. pandas' `.dt.round` rounds exact half-hours to the nearest even hour, which rounded 149 kickoffs down (mostly 8:30 pm ET night games during daylight saving time) and others up. The first full load used it; the fix reloaded those 149 games from the cache.
+
+## 2026-10-16 — raw.pbp stores whole-number columns as integers (step 1.7)
+
+- **Changed:** the 41 play-by-play columns that nflverse publishes as decimals but that only hold whole numbers (0/1 flags, down, yards, clock, `play_id`) are stored as `smallint` (`play_id` as `integer`) rather than `double precision`. The loader refuses any value that isn't whole or doesn't fit.
+- **Why:** measured on 2025, it cuts `raw.pbp` from about 330 MB to about 205 MB for 11 seasons, with identical values (checked for every season 2016–2026). Rob chose this over strict as-is types at the 1.7a review.
+
+## 2026-10-16 — No separate game_id index on raw.pbp (step 1.7)
+
+- **Changed:** step 1.7d asked for indexes on `game_id` and `(season, posteam)`. Only `(season, posteam)` was added.
+- **Why:** the primary key `(game_id, play_id)` is already a B-tree index led by `game_id`, and `EXPLAIN` confirms that a `WHERE game_id = …` query uses it. A second index would cost about 15 MB of Neon storage for nothing.

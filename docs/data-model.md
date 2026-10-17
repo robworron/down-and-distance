@@ -69,7 +69,30 @@ Checks at load (step 1.6, 2026-10-16, local): 100% of finished outdoor and open-
 
 #### raw.pbp
 
-Play-by-play, trimmed to the columns chosen in step 1.7a. `play_id` is unique only within a game, so the key is the pair `(game_id, play_id)`. Column list: to be added in step 1.7a.
+Play-by-play from 2016, trimmed to 60 of nflverse's 372 columns (chosen and justified in `notebooks/01_pbp_columns.ipynb`, step 1.7a). `play_id` is unique only within a game, so the key is the pair `(game_id, play_id)`. Loaded by `pipeline/load_pbp.py`, one season at a time; stale plays deleted per `season`.
+
+| Group | Columns |
+| ----- | ------- |
+| Keys and context | `game_id`, `play_id`, `season`, `week`, `season_type`, `posteam`, `defteam`, `posteam_type` |
+| Game state | `qtr`, `down`, `ydstogo`, `yardline_100`, `goal_to_go`, `game_seconds_remaining`, `score_differential` |
+| Drives | `fixed_drive`, `fixed_drive_result` |
+| Play type and filters | `play_type`, `pass`, `rush`, `qb_dropback`, `qb_scramble`, `qb_kneel`, `qb_spike`, `aborted_play`, `two_point_attempt` |
+| Play value | `epa`, `success`, `yards_gained`, `first_down` |
+| Win probability | `wp`, `wpa` |
+| Passing | `pass_attempt`, `complete_pass`, `air_yards`, `cpoe`, `pass_oe` |
+| Rushing | `rush_attempt` |
+| Turnovers and sacks | `interception`, `fumble`, `fumble_lost`, `sack` |
+| Scoring | `touchdown`, `pass_touchdown`, `rush_touchdown`, `return_touchdown`, `td_team`, `safety` |
+| Third and fourth down | `third_down_converted`, `third_down_failed`, `fourth_down_converted`, `fourth_down_failed` |
+| Penalties | `penalty`, `penalty_team`, `penalty_yards` |
+| Kicking | `field_goal_attempt`, `field_goal_result`, `extra_point_result`, `punt_attempt` |
+| Text | `desc` |
+
+**Types.** nflverse publishes most numeric columns as decimals even when they only hold whole numbers. The 41 whole-number columns (0/1 flags, downs, yards, clock, `play_id`) are stored as `smallint` (`play_id` as `integer`); the load stops if a value isn't whole or doesn't fit. Only `epa`, `wp`, `wpa`, `cpoe` and `pass_oe` are `double precision`. `pass` and `rush` already exclude kneels and spikes.
+
+**Indexes.** The primary key `(game_id, play_id)` is a B-tree sorted by `game_id` first, so it also serves lookups by `game_id` alone (`EXPLAIN` shows an index scan on `pbp_pkey`). `pbp_season_posteam_idx` on `(season, posteam)` serves per-team queries.
+
+**Size (step 1.7, 2026-10-16, local):** 498,285 plays in 2,841 games, 2016 to 2026 week 6. 197 MB in total: 159 MB table, 33 MB primary key, 5 MB `(season, posteam)` index. Every `game_id` exists in `raw.schedules`.
 
 ## Seeds
 

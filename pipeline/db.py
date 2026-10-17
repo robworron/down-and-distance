@@ -3,6 +3,7 @@
 import logging
 import os
 from dataclasses import dataclass
+from urllib.parse import urlsplit
 
 import pandas as pd
 import psycopg
@@ -19,6 +20,11 @@ def database_url() -> str:
     load_dotenv()
     url = os.environ["DATABASE_URL"]
     return url.replace("postgresql+psycopg://", "postgresql://", 1)
+
+
+def is_local_database() -> bool:
+    """True when DATABASE_URL points at the local Docker Postgres, not Neon."""
+    return urlsplit(database_url()).hostname in {"localhost", "127.0.0.1", "::1"}
 
 
 def get_engine() -> Engine:
@@ -47,7 +53,8 @@ def pg_type(dtype) -> str:
     if pd.api.types.is_bool_dtype(dtype):
         return "boolean"
     if pd.api.types.is_integer_dtype(dtype):
-        return "bigint"
+        # Int16 -> smallint (2 bytes), Int32 -> integer (4), Int64 -> bigint (8).
+        return {1: "smallint", 2: "smallint", 4: "integer"}.get(dtype.itemsize, "bigint")
     if pd.api.types.is_float_dtype(dtype):
         return "double precision"
     if isinstance(dtype, pd.DatetimeTZDtype):

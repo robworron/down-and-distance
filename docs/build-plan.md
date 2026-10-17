@@ -185,7 +185,7 @@ Goal: every source loaded into `raw`, repeatable with one command, and checked.
   - 1.6d Store temperature, precipitation, snowfall and wind at the kickoff hour in `raw.game_weather`.
   - Learn: APIs, JSON, time zones, caching, being polite to free services.
   - Done when: over 99% of outdoor and open-roof games have weather, the Dec 10, 2017 Colts–Bills snow game shows snowfall, and temperatures broadly agree with nflverse's `temp` column.
-- [ ] **1.7 Load play-by-play, 2016 to present.** Four sub-steps:
+- [x] **1.7 Load play-by-play, 2016 to present.** Four sub-steps:
   - 1.7a In a notebook, choose the 40–60 columns you need.
   - 1.7b Load one season and check its row count.
   - 1.7c Load all seasons and check the table size with `pg_total_relation_size`.
