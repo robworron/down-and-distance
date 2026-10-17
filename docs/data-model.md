@@ -40,6 +40,20 @@ Each table logs inserted / updated / unchanged / deleted counts. A second run st
 - `pipeline/tests/test_transforms.py`: unit tests for kickoff times (daylight saving time, half-hour rounding), game-window weather, and play-by-play integer conversion. No database needed.
 - `pipeline/tests/test_upsert.py`: unit tests for the upsert (insert, update, NULL changes, stale-row deletes, empty-season refusal, new columns, types) on throwaway schemas. Marked `local_only`; skipped unless `DATABASE_URL` is the local Docker database.
 
+### Production (Neon)
+
+Loaded on 2026-10-17 (step 1.10) with `ingest --full`, `DATABASE_URL` set to the Neon owner connection for that one command. `test_raw_data.py` passes against Neon (12 checks), and an immediate nightly-style `ingest` changes nothing.
+
+| Table | Rows | Size |
+| ----- | ---- | ---- |
+| `raw.schedules` | 7,548 | 3.6 MB |
+| `raw.teams` | 36 | 72 kB |
+| `raw.game_weather` | 5,945 | 1.3 MB |
+| `raw.pbp` | 498,285 | 182 MB |
+| Whole database | | 195 MB of the 1 GB free plan |
+
+`web_reader` reads all four tables through the default privileges in `raw` (see `decisions.md`; narrowed to `marts` in step 4.1).
+
 ### Tables
 
 | Table              | Source                         | Grain (one row per…)  | Primary key           | Seasons          |

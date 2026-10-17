@@ -77,3 +77,8 @@ Where the project deviates from `docs/build-plan.md`, and why. Newest last. Wher
 
 - **Changed:** step 1.7d asked for indexes on `game_id` and `(season, posteam)`. Only `(season, posteam)` was added.
 - **Why:** the primary key `(game_id, play_id)` is already a B-tree index led by `game_id`, and `EXPLAIN` confirms that a `WHERE game_id = …` query uses it. A second index would cost about 15 MB of Neon storage for nothing.
+
+## 2026-10-17 — The Phase 0 page filters to 2025 (step 1.10)
+
+- **Changed:** `getSchedules` in `web/lib/queries.ts` takes a season (the page passes 2025, as a SQL parameter) and casts `week` and the scores to `int`. This was pushed and deployed before Neon's `raw.schedules` was rebuilt.
+- **Why:** the page read all of `raw.schedules`, which held only 2025 until the full reload. Without the filter, the live page titled "2025 schedule" would have listed all 7,548 games from 1999. The casts are needed because the rebuilt columns are `bigint`, which the `pg` driver returns as strings. Rob approved the push. The page is replaced in Phase 4.

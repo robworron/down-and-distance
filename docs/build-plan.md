@@ -198,7 +198,7 @@ Goal: every source loaded into `raw`, repeatable with one command, and checked.
 - [x] **1.9 Write data checks.** pytest checks for row counts, duplicate keys, weather coverage and orphan games.
   - Learn: data-quality testing.
   - Done when: the checks pass, and fail when you break one on purpose.
-- [ ] **1.10 Load production.** Run the full ingest against Neon.
+- [x] **1.10 Load production.** Run the full ingest against Neon.
   - Done when: Neon's dashboard shows storage well under 1 GB.
 
 Checkpoint: you can explain ELT, upserts and idempotency.
