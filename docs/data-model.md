@@ -32,6 +32,14 @@ uv run python -m pipeline ingest --only weather,pbp    # a subset of tables
 
 Each table logs inserted / updated / unchanged / deleted counts. A second run straight after the first logs no changes (step 1.8). On the season in progress, a run a few hours later can update a handful of upcoming games, because betting lines move.
 
+### Checks
+
+`uv run pytest` runs three sets of tests (step 1.9):
+
+- `pipeline/tests/test_raw_data.py`: data checks against whatever `DATABASE_URL` points at, so it also runs against Neon. It covers regular-season games per season, that team codes resolve, no duplicate keys, weather coverage over 99%, snowfall in the 2017 snow game, no play-by-play for unknown games, play-by-play for every finished game since 2016, every stadium in the seed, and seed time zones matching their coordinates. The first two run the SQL in `pipeline/sql/checks/`.
+- `pipeline/tests/test_transforms.py`: unit tests for kickoff times (daylight saving time, half-hour rounding), game-window weather, and play-by-play integer conversion. No database needed.
+- `pipeline/tests/test_upsert.py`: unit tests for the upsert (insert, update, NULL changes, stale-row deletes, empty-season refusal, new columns, types) on throwaway schemas. Marked `local_only`; skipped unless `DATABASE_URL` is the local Docker database.
+
 ### Tables
 
 | Table              | Source                         | Grain (one row per…)  | Primary key           | Seasons          |

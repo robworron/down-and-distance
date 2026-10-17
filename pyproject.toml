@@ -15,5 +15,11 @@ dependencies = [
 [dependency-groups]
 dev = [
     "jupyter>=1.1.1",
+    "pytest>=9.1.1",
     "timezonefinder>=9.0.0",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["pipeline/tests"]
+pythonpath = ["."]
+markers = ["local_only: creates and drops tables, so runs only against the local database"]

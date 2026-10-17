@@ -195,7 +195,7 @@ Goal: every source loaded into `raw`, repeatable with one command, and checked.
 - [x] **1.8 One command runs it all.** For example `uv run python -m pipeline ingest`; by default it reloads only the current season.
   - Learn: entry points; incremental vs full loads; logging.
   - Done when: one command loads everything and a second run changes nothing.
-- [ ] **1.9 Write data checks.** pytest checks for row counts, duplicate keys, weather coverage and orphan games.
+- [x] **1.9 Write data checks.** pytest checks for row counts, duplicate keys, weather coverage and orphan games.
   - Learn: data-quality testing.
   - Done when: the checks pass, and fail when you break one on purpose.
 - [ ] **1.10 Load production.** Run the full ingest against Neon.
