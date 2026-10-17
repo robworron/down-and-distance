@@ -242,6 +242,7 @@ Two rows per game (15,096 as of 2026-10-17), key `(game_id, team)`: each game fr
 | Column | Values (local counts) | Rule |
 | ------ | ------ | ---- |
 | `team`, `opponent`, `is_home` | | `is_home` is the designated home team, even at a neutral site |
+| `season_type` | REG 14,478 · POST 618 | `POST` when `is_playoff` (step 2.11) |
 | `venue` | home 7,445 · away 7,445 · neutral 206 | neutral when `is_neutral_site` |
 | `points_for`, `points_against`, `margin` | | From this team's side; NULL until played |
 | `result` | win 7,340 · loss 7,340 · tie 32 · NULL 384 | |
@@ -249,6 +250,8 @@ Two rows per game (15,096 as of 2026-10-17), key `(game_id, team)`: each game fr
 | `rest_bucket` | normal 12,669 · bye 1,053 · extra 726 · short 648 | ≤5 short, 6–8 normal, 9–12 extra, ≥13 bye |
 | `team_spread` | | Betting convention, negative = favourite: home `−spread_line`, away `+spread_line` |
 | `spread_role` | favourite 3,645 · underdog 3,645 · pickem 3,018 · big_favourite 2,228 · big_underdog 2,228 · NULL 332 | ≤−7 big_favourite, −6.5 to −3 favourite, under 3 either way pickem, +3 to +6.5 underdog, ≥+7 big_underdog |
+| `ats_result` | cover 7,155 · no_cover 7,155 · push 402 · NULL 384 | Against the spread: `margin + team_spread` > 0 cover, = 0 push, < 0 no_cover. NULL until played (every finished game has a line). Covers and non-covers match, because one team's cover is the other's miss |
+| `total_line`, `total_result` | over 7,170 · under 7,330 · push 212 · NULL 384 | Both teams' points against the total line; the same on both rows (counts are team-games, so twice the games) |
 | `home_stadium_id` | | This team's home that season (`team_seasons`) |
 | `travel_miles` | 0 to 7,929 | Great-circle (haversine) miles from the home stadium to the game's stadium. 0 at the team's own stadium, including the Jets' and Chargers' 10 "away" games at the stadium they share with the Giants and Rams |
 | `time_zone_shift` | −7 to +9 | Hours the venue's clock is ahead of the team's home clock at kickoff (+ = travelled east), from IANA zones, so daylight saving time is handled; wrapped into −12..+12 (LA→Melbourne, +17, is −7). 1999 has no kickoff times, so it uses 1 pm ET on the game day |
@@ -273,11 +276,11 @@ This matters for Phase 6: a prediction can only use what was known before kickof
 **Tests:**
 - `unique_combination` on `(game_id, team)`.
 - `not_null` and `relationships` on `game_id`, `team` and `home_stadium_id`; `not_null` on `travel_miles` and `time_zone_shift`.
-- `accepted_values` on `venue`, `result`, `rest_bucket`, `spread_role`, `time_zone_travel`, `body_clock`.
+- `accepted_values` on `season_type`, `venue`, `result`, `rest_bucket`, `spread_role`, `ats_result`, `total_result`, `time_zone_travel`, `body_clock`.
 - Singular:
   - Exactly two rows per game (the step 2.6 check).
   - The two rows mirror each other: opponents, points, home flag, and spread, rest and margin differences cancel.
-  - Super Bowl LVII's spread sign: PHI −1, KC +1, KC won by 3 and covered.
+  - Super Bowl LVII's spread sign: PHI −1, KC +1, KC won by 3 and covered (`cover` / `no_cover`); 73 points against a total of 51 is `over` on both rows.
   - Breaking the away spread's sign or dropping the away rows makes these fail.
 - Travel spot checks (step 2.7):
   - Seattle at Pittsburgh at 1 pm ET: 10:00 body clock, +3, 2,132 miles.
@@ -288,6 +291,60 @@ This matters for Phase 6: a prediction can only use what was known before kickof
   - The 2024 Eagles' 21 games pinned row by row: the São Paulo opener as a road game, the 17-point loss at Tampa Bay feeding the first game after the bye, and the 10-game streak ended by Washington.
   - The streak's sign always agrees with `prev_result`.
   - `accepted_values` on `prev_result`; `not_null` on `game_number`, `games_since_bye`, `consecutive_road_games`.
+
+### mart_team_splits
+
+A team's record in every situation value, per season and season type (step 2.11): one row per `(team, season, season_type, situation_key, situation_value)`, e.g. `BUF, 2024, REG, wind, 15_plus`. 37,619 rows (6.7 MB) as of 2026-10-17, 1999 to 2026 week 6, finished games only.
+
+**How it's built.** Each finished `team_games` row is unpivoted into one row per situation in the registry (`CROSS JOIN LATERAL (VALUES …)`, generated from `marts.situations`), holding the situation's key, its `level` and this game's value as text (`true`/`false` for primetime). A NULL value drops out of that situation only: a closed-roof game has no weather row but still counts under roof, venue and the rest. Then `GROUP BY` the five grain columns. A new situation in `situations.csv` appears here on the next build with no SQL change.
+
+**Sums and counts only, never averages.** Every rate is computed when it's read, over whatever rows are picked: win % for 2022–2024 is the three seasons' summed wins and ties over their summed games. Averaging three seasons' win %s would weigh a short sample the same as a long one. Summing a situation's values gives the team's totals for every game that has a value; `venue` is never NULL, so the `venue` rows add up to all the team's games.
+
+| Column | Meaning | Rates built from it |
+| ------ | ------- | ------------------- |
+| `team`, `season`, `season_type`, `situation_key`, `situation_value` | The grain. `season_type` is `REG` or `POST` | |
+| `situation_level` | `game` or `team`, from the registry. Fixed by the key | |
+| `games`, `wins`, `losses`, `ties` | Finished team-games | Win % = (`wins` + ½ × `ties`) / `games`, the NFL standings definition |
+| `points_for`, `points_against` | Summed points | Points per game; margin = `points_for − points_against` |
+| `ats_games`, `ats_covers`, `ats_pushes` | Games with a line, covers, pushes | Cover % = `ats_covers / (ats_games − ats_pushes)` |
+| `ou_games`, `overs`, `unders`, `ou_pushes` | Games with a total, and their results | Over % = `overs / (ou_games − ou_pushes)` |
+| `stats_games` | Games with play-by-play (2016 on); 0 before | Per-game stats divide by this, not `games` |
+| `plays`, `yards`, `dropbacks`, `rushes`, `epa`, `successes` | Offense, summed from `team_game_stats` | Yards/play = `yards / plays`; EPA/play = `epa / (dropbacks + rushes)`; success rate likewise; pass rate = `dropbacks / (dropbacks + rushes)` |
+| `def_plays`, `def_yards`, `def_dropbacks`, `def_rushes`, `def_epa`, `def_successes` | Defense (the opponents' offense) | The same rates, allowed |
+| `turnovers`, `takeaways`, `sacks`, `sacks_taken` | | Turnover margin = `takeaways − turnovers` |
+| `third_down_attempts`, `third_down_conversions`, `red_zone_trips`, `red_zone_tds`, `penalties`, `penalty_yards` | | 3rd-down %, red-zone TD %, penalties per game |
+
+The play-by-play sums are NULL (not 0) when `stats_games` is 0: no data, not zero plays. `SUM` skips NULLs, so a 2014–2017 range adds the 2016–17 stats and divides by their `stats_games`. Counts and integer sums are `integer` (the site's `pg` driver returns `bigint` as a string); `epa` and `def_epa` are `double precision`.
+
+**Tests:** `unique_combination` on the grain; `not_null` on the grain and `games`; `relationships` from `team` to `stg_teams` and from `situation_key` to `situations`; `accepted_values` on `season_type` and `situation_level`. Singular tests below, with the league mart.
+
+### mart_league_splits
+
+The whole league per season, season type and situation value (step 2.11): `mart_team_splits` summed over the 32 teams, with the same columns minus `team`. 2,292 rows (0.5 MB). Its numbers are the teams' numbers added up, nothing recomputed: that's what additive measures buy.
+
+**`games` counts team-games:** a 15+ mph wind game adds two, one per team. So:
+- **League win % is meaningful only for team-level situations** (`situation_level = 'team'`: venue, rest, time-zone travel, body clock, spread role). In a game-level situation both teams share the value, so one wins and one loses and the league is 50% by construction. Compare game-level situations on scoring and over/under rate instead. The same holds for venue's `neutral` value. (Also under `situations.csv` below, and in the parking lot for Phase 4.)
+- League over/under counts are twice the games, and so are the points. Rates are unaffected.
+
+**League home win % by season** (regular season, `venue = 'home'`, the step 2.11 check):
+
+| Seasons | Home win % |
+| ------- | ---------- |
+| 1999–2018 | .531 (2006) to .616 (2003) |
+| 2019 | .520 |
+| **2020** | **.504**, the lowest: mostly empty stadiums |
+| 2021 | .511 |
+| 2022–2025 | .524 to .566 |
+
+**2020 reconciliation.** The published 2020 home record is 127–128–1 (.498) in 256 games. Here `home` holds 253 games, 127–125–1 (.504). The other 3 are the 49ers' "home" games in Glendale, Arizona (weeks 13, 14 and 17, all losses), played there under Santa Clara County's COVID rules. nflverse lists them as neutral-site games, so they're under `neutral`. Adding SF's `neutral` row (0–3, from `mart_team_splits`) gives back 256 games at 127–128–1 = .498. Those are 2020's only neutral-site regular-season games, so the league's `neutral` row is 6 team-games, 3–3.
+
+**Tests:**
+- `unique_combination` on `(season, season_type, situation_key, situation_value)`; `not_null` on the grain and `games`; `relationships` and `accepted_values` as in the team mart.
+- `mart_splits_additive`: every measure equals the sum over teams (columns read from the database, so new measures are covered).
+- `mart_splits_cover_every_game`: for each situation, season and season type, the league's games, wins, ties, points and plays over all values equal the finished `team_games` rows with a value, counted directly. Generated from the registry.
+- `league_splits_2020_home_dip`: 2020 has the lowest regular-season home win % of every complete season (any season whose regular season is fully played).
+- `splits_2020_home_record`: pins the reconciliation: home 253 games 127–125–1, neutral 6 at 3–3, SF neutral 0–3.
+- Adding a game to one league row fails the first two; lowering 2019's home wins fails the dip test.
 
 ## Seeds
 

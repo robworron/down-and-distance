@@ -160,6 +160,12 @@ models:
                 field: team_abbr
       - name: opponent
         data_tests: [not_null]
+      - name: season_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [REG, POST]
       - name: is_home
         data_tests: [not_null]
       - name: venue
@@ -184,6 +190,16 @@ models:
           - accepted_values:
               arguments:
                 values: [big_favourite, favourite, pickem, underdog, big_underdog]
+      - name: ats_result
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [cover, push, no_cover]
+      - name: total_result
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [over, under, push]
       - name: home_stadium_id
         data_tests:
           - not_null
@@ -216,4 +232,77 @@ models:
       - name: games_since_bye
         data_tests: [not_null]
       - name: consecutive_road_games
+        data_tests: [not_null]
+
+  - name: mart_team_splits
+    description: A team's record in every situation value, per season and season type (REG or POST), from finished games. Generated from the situation registry. Sums and counts only, so any season range re-aggregates correctly.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [team, season, season_type, situation_key, situation_value]
+    columns:
+      - name: team
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_teams')
+                field: team_abbr
+      - name: season
+        data_tests: [not_null]
+      - name: season_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [REG, POST]
+      - name: situation_key
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('situations')
+                field: key
+      - name: situation_level
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [game, team]
+      - name: situation_value
+        data_tests: [not_null]
+      - name: games
+        data_tests: [not_null]
+
+  - name: mart_league_splits
+    description: The whole league's record in every situation value, per season and season type; mart_team_splits summed over teams. games counts team-games, so win % is meaningful only for team-level situations.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [season, season_type, situation_key, situation_value]
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: season_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [REG, POST]
+      - name: situation_key
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('situations')
+                field: key
+      - name: situation_level
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [game, team]
+      - name: situation_value
+        data_tests: [not_null]
+      - name: games
         data_tests: [not_null]

@@ -191,3 +191,14 @@ Where the project deviates from `docs/build-plan.md`, and why. Newest last. Wher
 - **Level (Rob's revision):** a `level` column marks each situation `game` (the same for both teams) or `team` (can differ). League-level win % is only meaningful for team-level situations; game-level ones are compared on scoring and over/under rate (`data-model.md`, and the parking lot for Phase 4).
 - **Generated SQL:** the `situation_registry()` macro reads the seed with `run_query` while dbt runs, so tests (and 2.11's split marts) loop over the registry instead of listing situations by hand. dbt can't see references made inside those loops while parsing, so each caller declares them with `-- depends_on:` comments.
 - **Why:** one table drives the site's filters, the split marts and their tests, so adding a situation is a CSV row plus its column.
+
+## 2026-10-17 — Split marts (step 2.11)
+
+- **Playoffs (Rob's choice):** both split marts carry `season_type` (`REG` / `POST`) in their grain, so a regular-season split never mixes in playoff games, and the site can still add the two together. `team_games` gains the column, from `is_playoff`.
+- **Win % (Rob's revision):** (wins + ½ × ties) / games, the NFL standings definition. The marts store wins, losses, ties and games; the rate is computed when read.
+- **2020 home record:** the league's regular-season `home` row for 2020 is 253 games, 127–125–1 (.504), against the published 127–128–1 (.498) in 256. The difference is the 49ers' three Glendale games (weeks 13, 14 and 17, all losses), which nflverse lists as neutral-site games, so their venue is `neutral`. Adding them back reproduces the published figure exactly; `splits_2020_home_record` pins both. They stay `neutral`: the 49ers weren't at home. 2020 is still the lowest home win % of any complete season either way (next: 2021 at .511, 2019 at .520).
+- **Betting results on `team_games`:** `ats_result` (cover / push / no_cover, from margin + `team_spread`) and `total_result` (over / under / push, from both scores against `total_line`). The marts count them; cover % and over % leave pushes out of the denominator.
+- **Measures:** sums and counts only, as the plan requires. `stats_games` counts the games with play-by-play, so stat rates over a range that starts before 2016 divide by the right number. Play-by-play sums are NULL, not 0, when there's no play-by-play.
+- **`situation_level` carried in both marts:** the registry's `game` / `team` level, so a league view can filter to team-level situations for win % without a join.
+- **Types:** every count and integer sum is cast to `integer`. Postgres's `SUM` of a `bigint` is `numeric`, and the site's `pg` driver returns `bigint` as a string (the 1.10 lesson).
+- **Why:** these follow the plan's 2.11 with Rob's two answers; the rest makes the marts safe to re-aggregate over any season range.

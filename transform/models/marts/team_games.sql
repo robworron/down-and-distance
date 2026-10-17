@@ -134,6 +134,9 @@ team_rows as (
         g.week,
         g.game_type,
         g.is_playoff,
+        -- Regular season or playoffs (2.11): the split marts keep them apart.
+        case when g.is_playoff then 'POST' else 'REG' end
+                                                    as season_type,
         g.gameday,
         g.kickoff_et,
         g.kickoff_utc,
@@ -185,7 +188,22 @@ team_rows as (
             when s.team_spread < 7     then 'underdog'
             else 'big_underdog'
         end                                         as spread_role,
+        -- Against the spread (2.11): margin plus the team's spread. KC won
+        -- Super Bowl LVII by 3 as a 1-point underdog: 3 + 1 = 4 > 0, covered.
+        -- NULL scores or a missing line fall through to NULL.
+        case
+            when s.points_for - s.points_against + s.team_spread > 0 then 'cover'
+            when s.points_for - s.points_against + s.team_spread = 0 then 'push'
+            when s.points_for - s.points_against + s.team_spread < 0 then 'no_cover'
+        end                                         as ats_result,
         g.total_line,
+        -- Over/under (2.11): both teams' points against the total line. The
+        -- same for both rows of a game.
+        case
+            when s.points_for + s.points_against > g.total_line then 'over'
+            when s.points_for + s.points_against = g.total_line then 'push'
+            when s.points_for + s.points_against < g.total_line then 'under'
+        end                                         as total_result,
 
         -- Travel and body clock (2.7), from this team's home stadium that season.
         -- A home game at the home stadium is 0 miles and 0 zones.

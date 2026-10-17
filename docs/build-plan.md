@@ -236,7 +236,7 @@ Goal: one `team_games` table with a row per team per game, carrying every situat
 - [x] **2.10 Situation registry.** A `situations.csv` seed: key, label, category, column, values, description, `in_v1`.
   - Learn: config-driven design: the website builds its filters from this table, so a new situation needs no new page code.
   - Done when: all 12 v1 situations are listed and each column exists in `team_games`.
-- [ ] **2.11 Split marts.** `mart_team_splits` and `mart_league_splits` per season per situation value, storing sums and counts rather than averages.
+- [x] **2.11 Split marts.** `mart_team_splits` and `mart_league_splits` per season per situation value, storing sums and counts rather than averages.
   - Learn: additive measures. An average of averages is wrong; summed totals divided by summed counts over any season range is right.
   - Done when: league home win % by season shows the 2020 dip.
 - [ ] **2.12 Tests and docs.** Fill test gaps; run `dbt docs generate` and look at the lineage graph.
