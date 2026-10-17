@@ -55,8 +55,8 @@ A failed check sends you back to fix the code inside the same step; only a passi
 
 - Never start a step while the previous step's "Done when" check is failing.
 - When something breaks: read the whole error message, make one guess, test it. Change one thing at a time.
-- Before Claude Code writes anything, I explain the concept in plain English. After it writes, you read the diff: line by line on You try first steps, a skim everywhere else.
-- Steps marked **You try first** cover data analyst skills only: SQL, statistics and analysis. Those are what an analyst interview tests, so attempt them yourself before Claude Code does.
+- Before Claude Code writes anything, I explain the concept in plain English. After it writes, you read the diff, with a clause-by-clause walkthrough after SQL- or analysis-heavy steps.
+- Claude Code writes all code, SQL and analysis included; Rob reviews the walkthroughs.
 - Everything else is automated: Claude Code writes the Python pipeline, the frontend, the ML models and the deployment setup. On those steps, your job is to skim the diff and run the Done-when check.
 - One commit per step, message starting with the step number, e.g. `1.4: load teams`.
 - Secrets (database passwords, API keys) live in `.env` files that are never committed. `.env.example` lists their names with no values.
@@ -207,7 +207,7 @@ Checkpoint: you can explain ELT, upserts and idempotency.
 
 Goal: one `team_games` table with a row per team per game, carrying every situation and stat, plus summary tables the website reads.
 
-- [ ] **2.1 Feel the problem first (You try first).** By hand, write a query for each team's 2025 home and away average margin from `raw.schedules`.
+- [ ] **2.1 Feel the problem first.** By hand, write a query for each team's 2025 home and away average margin from `raw.schedules`.
   - Learn: why each game must become two rows, one per team (long format), using `UNION ALL`.
   - Done when: 64 rows come back (32 teams × home and away).
 - [ ] **2.2 Set up dbt.** Add `dbt-postgres` (stable 1.x), run `dbt init` in `transform/`, read credentials from environment variables.
@@ -221,7 +221,7 @@ Goal: one `team_games` table with a row per team per game, carrying every situat
 - [ ] **2.5 The games model.** One row per game joining schedules, stadiums and weather, with game-level situations: roof, surface, temperature, precipitation and wind buckets, time slot, primetime, opponent type, neutral site.
   - Learn: `CASE WHEN` bucketing; `accepted_values` tests.
   - Done when: the row count equals schedules and every bucket column passes its test.
-- [ ] **2.6 The team_games model (You try first).** Two rows per game: is_home, points for and against, result, rest days, rest difference, and the spread from that team's side.
+- [ ] **2.6 The team_games model.** Two rows per game: is_home, points for and against, result, rest days, rest difference, and the spread from that team's side.
   - Learn: flipping perspective; sign conventions (check one spread against a game you know).
   - Done when: a test confirms exactly two rows per `game_id`.
 - [ ] **2.7 Travel and body-clock features.** Each team's home stadium per season; time zones crossed and direction at kickoff; kickoff hour in the visiting team's zone; travel distance.
@@ -230,13 +230,13 @@ Goal: one `team_games` table with a row per team per game, carrying every situat
 - [ ] **2.8 Game stats from play-by-play.** One row per team per game: plays, EPA/play on offense and defense, success rate, yards/play, pass rate, turnovers, sacks, 3rd-down %, red-zone TD %, penalties.
   - Learn: aggregation; filtering to real plays (no kneels or spikes); a team's defense is its opponent's offense.
   - Done when: one game's yards and turnovers match its official box score.
-- [ ] **2.9 Form features with window functions (You try first).** Previous result, win/loss streak, after a blowout loss, games since bye, consecutive road games. These feed the v1.1 situations and the models.
+- [ ] **2.9 Form features with window functions.** Previous result, win/loss streak, after a blowout loss, games since bye, consecutive road games. These feed the v1.1 situations and the models.
   - Learn: `LAG`, `ROW_NUMBER`, `PARTITION BY` — staple interview topics.
   - Done when: one team's full season reads correctly row by row.
 - [ ] **2.10 Situation registry.** A `situations.csv` seed: key, label, category, column, values, description, `in_v1`.
   - Learn: config-driven design: the website builds its filters from this table, so a new situation needs no new page code.
   - Done when: all 12 v1 situations are listed and each column exists in `team_games`.
-- [ ] **2.11 Split marts (You try first).** `mart_team_splits` and `mart_league_splits` per season per situation value, storing sums and counts rather than averages.
+- [ ] **2.11 Split marts.** `mart_team_splits` and `mart_league_splits` per season per situation value, storing sums and counts rather than averages.
   - Learn: additive measures. An average of averages is wrong; summed totals divided by summed counts over any season range is right.
   - Done when: league home win % by season shows the 2020 dip.
 - [ ] **2.12 Tests and docs.** Fill test gaps; run `dbt docs generate` and look at the lineage graph.
@@ -254,10 +254,10 @@ Goal: find out which situations actually matter before building pages around the
   - Done when: a notebook plots games per season.
 - [ ] **3.2 Sanity checks against known facts.** League home win % and average margin by season; points per game by season.
   - Done when: your numbers match published figures, e.g. home teams finishing below .500 in 2020.
-- [ ] **3.3 League-wide situation effects (You try first).** For each v1 situation: margin, EPA/play and total points against the league baseline, with n and a 95% confidence interval.
+- [ ] **3.3 League-wide situation effects.** For each v1 situation: margin, EPA/play and total points against the league baseline, with n and a 95% confidence interval.
   - Learn: standard error and confidence intervals.
   - Done when: one chart per situation family, each with error bars.
-- [ ] **3.4 The big questions (You try first).** Does yard differential predict wins? Is offensive or defensive EPA more predictive of win %? Which is more stable from one season to the next?
+- [ ] **3.4 The big questions.** Does yard differential predict wins? Is offensive or defensive EPA more predictive of win %? Which is more stable from one season to the next?
   - Learn: correlation, simple regression, R².
   - Done when: each question has a one-paragraph answer and a chart.
 - [ ] **3.5 Small samples and noise.** Shuffle situation labels at random and count how many "significant" team splits appear anyway; compare raw team splits with shrunk ones.
@@ -351,7 +351,7 @@ Goal: game predictions made before kickoff, graded after, with a public track re
   - Done when: both pages read from the tables, not from hard-coded values.
 - [ ] **6.9 Automate.** Weekly retrain, plus daily predict and grade, in the workflow.
   - Done when: a full week passes with no manual steps.
-- [ ] **6.10 Backtest against the spread (You try first).** Using the walk-forward predictions from 6.4–6.5: if you had taken the model's side whenever it disagreed with the closing spread by 2+ points, what was its against-the-spread record each season?
+- [ ] **6.10 Backtest against the spread.** Using the walk-forward predictions from 6.4–6.5: if you had taken the model's side whenever it disagreed with the closing spread by 2+ points, what was its against-the-spread record each season?
   - Learn: break-even at standard −110 pricing is 52.4%; confidence intervals on a win rate; why the closing line is a tough benchmark.
   - Done when: a table shows ATS record, win % with a 95% confidence interval, and hypothetical ROI per season.
 

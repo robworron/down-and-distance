@@ -8,7 +8,7 @@ Before starting a phase, read `docs/decisions.md`: it logs every place we deviat
 
 ## Who you're working with
 
-Rob is an honours CS grad, fluent in Next.js/React/TypeScript/Tailwind, with basic Python. He is moving into data analyst work, so SQL, statistics and analysis are the skills he wants to build himself. Explain new tools and concepts in plain English as you introduce them.
+Rob is an honours CS grad, fluent in Next.js/React/TypeScript/Tailwind, with basic Python, moving into data analyst work. Claude Code writes all code, including SQL and analysis. Explain new tools and concepts in plain English as you introduce them. After any SQL- or analysis-heavy step, walk Rob through what was built clause by clause, so he can explain it in interviews.
 
 ## How we work
 
@@ -20,7 +20,6 @@ Rob is an honours CS grad, fluent in Next.js/React/TypeScript/Tailwind, with bas
   3. Tick the step's box in `docs/build-plan.md` (same commit).
 - Never start a step while the previous step's "Done when" check fails.
 - Keep changes inside the current step. Ideas for later go in `docs/parking-lot.md`, not into the code.
-- Steps marked **You try first** (SQL, statistics, analysis) are not hand-backs: write the solution yourself. Comment each query clause by clause (what it does, and why it sits where it does), and after the check passes, walk through the solution in plain English so Rob can learn from it later.
 
 ## Stop and hand back to Rob when
 
@@ -28,6 +27,7 @@ Rob is an honours CS grad, fluent in Next.js/React/TypeScript/Tailwind, with bas
 - A phase ends. Summarise what was built and list the checkpoint concepts from the plan.
 - The same error survives two fix attempts. Stop and explain what you tried and what you think is wrong.
 - An action would delete data, rewrite git history, or change production (Neon, Vercel) beyond what the step says.
+- A step needs a judgment call the plan doesn't settle (bucket definitions, data corrections, scope changes). Present the options with counts and a recommendation, then wait.
 
 ## Environment
 
@@ -55,7 +55,7 @@ Run from the repo root unless noted. Anything local needs Docker Desktop running
 - **Weather cache:** `pipeline/.cache/open-meteo/` (gitignored). Without it, a `--full` run refetches about 6,000 games (around 90 minutes, paced to Open-Meteo's free tier).
 - **Tests:** `uv run pytest` runs everything. Against Neon, run only the data checks: `uv run pytest pipeline/tests/test_raw_data.py`.
 - **`local_only` marker:** `test_upsert.py` creates and drops throwaway schemas. It is marked `local_only` and skips itself unless `DATABASE_URL` is the local database (`is_local_database()` in `pipeline/db.py`). Give any new test that writes to the database the same marker and skip.
-- **SQL checks:** `pipeline/sql/checks/*.sql` are Rob's study material: Done-when queries commented clause by clause. Rob runs them in DBeaver against local Postgres; `test_raw_data.py` runs them too. Put new SQL checks there in the same style.
+- **SQL checks:** `pipeline/sql/checks/*.sql` are SQL checks: Done-when queries commented clause by clause. Rob runs them in DBeaver against local Postgres; `test_raw_data.py` runs them too. Put new SQL checks there in the same style.
 - **Stadium seed:** `uv run python -m pipeline.validate_stadiums` checks `transform/seeds/stadiums.csv`. Add `--fill-altitude` after adding a stadium.
 - **Local website:** `web/.env.local` holds one line, `DATABASE_URL=`, with the same local URL as `.env` (Next.js reads env files only from `web/`). It is gitignored, so create it on a fresh clone. In `web/`: `npm ci`, then `npm run dev` (or the `web` preview in `.claude/launch.json`), `npm run build` and `npm run lint`.
 - **Reference:** `docs/data-model.md` describes every table, its checks and the Phase 2 weather rules.
