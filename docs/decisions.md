@@ -130,3 +130,11 @@ Where the project deviates from `docs/build-plan.md`, and why. Newest last. Wher
 - **Time slot:** by Eastern kickoff. Sunday games before noon (international mornings) and Thursday/Monday games before 19:00 (Thanksgiving afternoons, holiday games) are `other`, as are Friday, Tuesday and Wednesday games. Playoffs follow the same clock rules; `is_primetime` is any kickoff at 19:00 ET or later.
 - **Opponent type:** nflverse's `div_game` (right for every era); conferences from today's teams, except Seattle counts as AFC before 2002.
 - **Why:** each rule follows the plan's v1 value sets and the Phase 2 weather rules; the edge cases are decided once here so every split agrees.
+
+## 2026-10-17 — Team-level rules (step 2.6) and team codes (step 2.4)
+
+- **Spread role (Rob's choice):** five tiers at football's key numbers 3 and 7, from the team's own spread: `big_favourite` (−7 or more), `favourite` (−3 to −6.5), `pickem` (under 3 either way), `underdog` (+3 to +6.5), `big_underdog` (+7 or more). The plan's "favourite / underdog / pick'em, by spread size" left the sizes open; this keeps every bucket large (2,228–3,645 team-games).
+- **Spread sign:** `team_spread` uses the betting convention (negative = favourite): the home team gets `−spread_line`, the away team `+spread_line`. Checked on Super Bowl LVII.
+- **Rest:** 5 days or less counts as `short`, including Friday games after a Sunday, even though from 2026 the NFL no longer calls Friday games a short week. The bucket describes days of rest, not the league's label.
+- **Venue:** at a neutral site both teams' `venue` is `neutral`; `is_home` still marks the designated home team.
+- **Team codes:** staging maps relocated teams' codes to today's franchise (OAK→LV, SD→LAC, STL→LA) everywhere, keeping the listed codes on `stg_schedules`. `stg_teams` holds the 32 current franchises only (LAR, a second Rams code in nflverse's teams data, is dropped too). A franchise's history reads as one team, e.g. the Raiders' Oakland years under LV.

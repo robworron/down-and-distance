@@ -221,7 +221,7 @@ Goal: one `team_games` table with a row per team per game, carrying every situat
 - [x] **2.5 The games model.** One row per game joining schedules, stadiums and weather, with game-level situations: roof, surface, temperature, precipitation and wind buckets, time slot, primetime, opponent type, neutral site.
   - Learn: `CASE WHEN` bucketing; `accepted_values` tests.
   - Done when: the row count equals schedules and every bucket column passes its test.
-- [ ] **2.6 The team_games model.** Two rows per game: is_home, points for and against, result, rest days, rest difference, and the spread from that team's side.
+- [x] **2.6 The team_games model.** Two rows per game: is_home, points for and against, result, rest days, rest difference, and the spread from that team's side.
   - Learn: flipping perspective; sign conventions (check one spread against a game you know).
   - Done when: a test confirms exactly two rows per `game_id`.
 - [ ] **2.7 Travel and body-clock features.** Each team's home stadium per season; time zones crossed and direction at kickoff; kickoff hour in the visiting team's zone; travel distance.

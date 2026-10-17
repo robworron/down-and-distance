@@ -197,6 +197,23 @@ Weather buckets are NULL for closed-roof games, 1999, upcoming games and the las
 
 **Tests:** `unique`/`not_null` on `game_id`; `accepted_values` on every bucket; `not_null` on `surface_type`, `opponent_type`, `is_open_air`, `is_neutral_site`. Singular: row count equals `stg_schedules`; non-open-air games have no weather; open-air games with a weather row have all three weather buckets; the Melbourne game is open air with weather; every finished game has a roof type (except Madrid 2025); `div_game` matches today's divisions from 2002; nflverse's `weekday` matches `gameday`.
 
+### team_games
+
+Two rows per game (15,096 as of 2026-10-17), key `(game_id, team)`: each game from each team's point of view. Built from `games` with `UNION ALL` (a home branch and an away branch), then joined back to `games` for every game-level situation column above, so the splits marts read one table.
+
+| Column | Values (local counts) | Rule |
+| ------ | ------ | ---- |
+| `team`, `opponent`, `is_home` | | `is_home` is the designated home team, even at a neutral site |
+| `venue` | home 7,445 · away 7,445 · neutral 206 | neutral when `is_neutral_site` |
+| `points_for`, `points_against`, `margin` | | From this team's side; NULL until played |
+| `result` | win 7,340 · loss 7,340 · tie 32 · NULL 384 | |
+| `rest_days`, `rest_diff` | | nflverse's days since the previous game (week 1 = 7); `rest_diff` = team minus opponent |
+| `rest_bucket` | normal 12,669 · bye 1,053 · extra 726 · short 648 | ≤5 short, 6–8 normal, 9–12 extra, ≥13 bye |
+| `team_spread` | | Betting convention, negative = favourite: home `−spread_line`, away `+spread_line` |
+| `spread_role` | favourite 3,645 · underdog 3,645 · pickem 3,018 · big_favourite 2,228 · big_underdog 2,228 · NULL 332 | ≤−7 big_favourite, −6.5 to −3 favourite, under 3 either way pickem, +3 to +6.5 underdog, ≥+7 big_underdog |
+
+**Tests:** `unique_combination` on `(game_id, team)`; `not_null` and `relationships` on `game_id` and `team`; `accepted_values` on `venue`, `result`, `rest_bucket`, `spread_role`. Singular: exactly two rows per game (the step 2.6 check); the two rows mirror each other (opponents, points, home flag, and spread, rest and margin differences cancel); Super Bowl LVII's spread sign (PHI −1, KC +1, KC won by 3 and covered). Breaking the away spread's sign or dropping the away rows makes these fail.
+
 ## Seeds
 
 Hand-made reference CSVs in `transform/seeds/`, loaded by `dbt seed` (`uv run python -m pipeline dbt seed`) into the `staging` schema, e.g. `staging.stadiums`.
