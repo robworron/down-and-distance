@@ -3,6 +3,7 @@
     uv run pytest pipeline/tests/test_raw_data.py
 """
 
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -52,26 +53,33 @@ def test_no_duplicate_keys(query, table, key):
 
 
 def test_weather_coverage(query):
-    """Over 99% of finished outdoor and open-roof games from 2000 have weather.
+    """Over 99% of finished games played in the open, from 2000, have weather.
 
-    Games from the last 9 days are left out: the archive lags, so the loader
-    doesn't ask for them yet.
+    "In the open": the game's roof is outdoors/open, or the stadium has no roof
+    (stadiums.csv). The rule lives in weather_coverage.sql.
     """
-    games = query(
+    result = query((CHECKS / "weather_coverage.sql").read_text()).iloc[0]
+    assert result["coverage_pct"] > 99, f"weather for {result['with_weather']} of {result['games']} games"
+
+
+def test_open_air_list_matches_seed():
+    """weather_coverage.sql types in stadiums.csv's roofless stadiums; they must match."""
+    in_sql = set(re.findall(r"\('([A-Z]{3}\d{2})'\)", (CHECKS / "weather_coverage.sql").read_text()))
+    in_seed = set(STADIUMS.loc[STADIUMS["roof"] == "outdoors", "stadium_id"])
+    assert in_sql == in_seed, f"only in the SQL: {sorted(in_sql - in_seed)}; only in the CSV: {sorted(in_seed - in_sql)}"
+
+
+def test_mislabelled_open_air_game_has_weather(query):
+    """nflverse lists the 2026 Melbourne Cricket Ground game as 'dome'; the MCG has no roof."""
+    row = query(
         """
-        SELECT s.game_id, w.game_id IS NOT NULL AS has_weather
-        FROM raw.schedules AS s
-        LEFT JOIN raw.game_weather AS w ON w.game_id = s.game_id
-        WHERE s.season >= 2000
-          AND s.roof IN ('outdoors', 'open')
-          AND s.gametime IS NOT NULL
-          AND s.home_score IS NOT NULL
-          AND s.gameday::date <= current_date - 9
+        SELECT s.roof, w.temperature_f
+        FROM raw.schedules AS s LEFT JOIN raw.game_weather AS w USING (game_id)
+        WHERE s.game_id = '2026_01_SF_LA'
         """
     )
-    coverage = games["has_weather"].mean()
-    missing = games.loc[~games["has_weather"], "game_id"].tolist()
-    assert coverage > 0.99, f"weather for {coverage:.2%} of {len(games)} games; missing e.g. {missing[:10]}"
+    assert len(row) == 1 and row.iloc[0]["roof"] == "dome", "nflverse's label changed; revisit this test"
+    assert pd.notna(row.iloc[0]["temperature_f"]), "the MCG game has no weather"
 
 
 def test_snow_game_has_snow(query):
