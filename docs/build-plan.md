@@ -241,7 +241,7 @@ Goal: one `team_games` table with a row per team per game, carrying every situat
   - Done when: league home win % by season shows the 2020 dip.
 - [x] **2.12 Tests and docs.** Fill test gaps; run `dbt docs generate` and look at the lineage graph.
   - Done when: `dbt build` passes end to end.
-- [ ] **2.13 Build in production.** Run `dbt build` against Neon.
+- [x] **2.13 Build in production.** Run `dbt build` against Neon.
   - Done when: the marts exist in Neon and storage is still under budget.
 
 Checkpoint: you can explain staging vs marts, long format, window functions and additive measures.

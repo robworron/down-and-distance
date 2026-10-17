@@ -49,12 +49,23 @@ Loaded on 2026-10-17 (step 1.10) with `ingest --full`, `DATABASE_URL` set to the
 | `raw.schedules` | 7,548 | 3.6 MB |
 | `raw.teams` | 36 | 72 kB |
 | `raw.game_weather` | 5,945 | 1.3 MB |
-
-Neon's `raw.game_weather` predates the schedule corrections (steps 2.4 and 2.7): reload `--only weather --seasons 2000-2005,2016-2018,2025` against Neon before step 2.13 (local now has 5,946 rows).
 | `raw.pbp` | 498,285 | 182 MB |
 | Whole database | | 195 MB of the 1 GB free plan |
 
 `web_reader` reads all four tables through the default privileges in `raw` (see `decisions.md`; narrowed to `marts` in step 4.1).
+
+**Weather reload (step 2.13, 2026-10-17).** Neon's `raw.game_weather` predated the schedule corrections (steps 2.4 and 2.7). With Rob's approval it was reloaded from the Open-Meteo cache with `ingest --only weather --seasons 2000-2005,2016-2018,2025`: 1 inserted (the São Paulo game), 97 updated (91 re-timed kickoffs, 6 international games' coordinates), 2,144 unchanged, 0 deleted. Neon then matched local row for row (5,946 rows, 0 differences), and `test_raw_data.py` passed against Neon (16 checks).
+
+**dbt build (step 2.13, 2026-10-17).** `uv run python -m pipeline dbt build` with `DATABASE_URL` set to Neon for that one command: 290 of 290 passed in 31 seconds (4 seeds, 4 views, 6 tables, 276 tests). Every row count matches local, the 2020 home dip reads the same (.504), and every staging and marts column has its comment.
+
+| Schema | Tables / views | Size | Rows |
+| ------ | -------------- | ---- | ---- |
+| `raw` | 4 tables | 187 MB | as above, with `raw.game_weather` now 5,946 |
+| `staging` | 3 seeds + 4 views | 120 kB | views store nothing |
+| `marts` | 7 tables | 17 MB | `games` 7,548 (2.0 MB) · `team_seasons` 893 · `team_game_stats` 5,682 (1.5 MB) · `team_games` 15,096 (6.7 MB) · `mart_team_splits` 37,619 (6.5 MB) · `mart_league_splits` 2,292 (0.4 MB) · `situations` 13 |
+| Whole database | | **212 MB** of the 1 GB free plan | |
+
+The site still reads `raw.schedules` until Phase 4; `web_reader` has no grant on `marts` yet (step 4.1).
 
 ### Tables
 
