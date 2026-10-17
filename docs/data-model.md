@@ -84,7 +84,7 @@ Team names, conference, division, colours and logos. Keyed on `team_abbr`, which
 
 #### raw.game_weather
 
-Weather at each game's stadium from Open-Meteo's historical archive (ERA5 reanalysis). One row per finished game from 2000 on (1999 has no kickoff times) outside a fixed dome; retractable-roof games are included, since the open/closed state comes from schedules. Loaded by `pipeline/load_weather.py`; key `game_id`, stale rows deleted per `season`.
+Weather at each game's stadium from Open-Meteo's historical archive (reanalysis models such as ERA5; see the note on amounts below). One row per finished game from 2000 on (1999 has no kickoff times) outside a fixed dome; retractable-roof games are included, since the open/closed state comes from schedules. Loaded by `pipeline/load_weather.py`; key `game_id`, stale rows deleted per `season`.
 
 | Column | Meaning |
 | ------ | ------- |
@@ -99,6 +99,24 @@ Weather at each game's stadium from Open-Meteo's historical archive (ERA5 reanal
 Open-Meteo's hourly precipitation and snowfall are totals for the *preceding* hour, so the value at `k` covers the hour before kickoff and the sum of `k+1`…`k+3` covers exactly the three hours after it. Temperature and wind are instantaneous readings.
 
 **Phase 2 buckets (temperature, precipitation, wind) should use the game-window values**, which describe the conditions the game was played in. The kickoff-hour values are kept for comparison with nflverse's `temp` and `wind`.
+
+**Closed-roof games have weather rows, but Phase 2 must treat them as having no weather.** The loader skips only fixed domes (by `stadiums.csv`), so retractable-roof stadiums get the outside weather for every game, whatever the roof did. As of 2026-10-17 the 5,945 rows break down by schedules' per-game `roof`:
+
+| Per-game `roof` | Rows | Weather applies? |
+| --------------- | ---- | ---------------- |
+| `outdoors` | 5,179 | Yes |
+| `open` | 130 | Yes |
+| `closed` | 629 | **No**: Houston, Arizona, Dallas, Indianapolis and Atlanta with the roof shut |
+| `dome` | 7 | Depends: 6 Bills games at Toronto's Rogers Centre (2008–2013, a retractable roof kept shut): **no**. `2026_01_SF_LA` at the Melbourne Cricket Ground: **yes** |
+
+The Melbourne game is an nflverse error: the MCG has no roof, but schedules list it as `dome` (the upcoming 2026 games in Munich and Paris carry the same placeholder). So Phase 2's rule is:
+
+- **Weather applies when the game was effectively played in the open.** Use schedules' per-game `roof` (`outdoors` or `open`), except that a stadium `stadiums.csv` lists as `outdoors` always counts as open.
+- **Every other game gets null weather buckets,** even though `raw.game_weather` has a row for it. They should neither count as "cold" or "windy" nor be dropped from other splits.
+
+The 99% coverage check (`weather_coverage.sql`) counts only `outdoors` and `open` games, which is why it reports 5,309 rather than 5,945.
+
+**Amounts are model estimates, not gauge readings.** Open-Meteo's archive comes from reanalysis weather models that describe the atmosphere on a coarse grid (cells roughly 10–30 km across, depending on the model it blends). A grid cell averages out local squalls and narrow lake-effect snow bands. The 2017 Colts–Bills snow game shows only 0.99 in of snow over the game window, far below the lake-effect snow that buried the field. Temperature and wind, which vary smoothly, agree well with nflverse's reported values; precipitation and snow amounts are the least reliable. **Phase 2 should bucket precipitation and snowfall as none / light / heavy** (thresholds set in step 2.5) rather than trusting exact amounts. Open-Meteo's `precipitation` includes melted snow, so in a snow game both totals are non-zero: call it snow when `snowfall_total_in` > 0, otherwise rain when `precipitation_total_in` > 0.
 
 Checks at load (step 1.6, 2026-10-16, local): 100% of finished outdoor and open-roof games from 2000 have weather (5,309 of 5,309; `pipeline/sql/checks/weather_coverage.sql`). Against nflverse's `temp` over 5,054 games: correlation 0.978, mean gap −0.3 °F, median absolute gap 1.9 °F (`weather_vs_nflverse_temp.sql`). The 2017 Colts–Bills snow game shows 0.25 in of snow in the kickoff hour and 0.99 in over the game window.
 
@@ -154,4 +172,4 @@ One row per `stadium_id` used in `raw.schedules` (67 as of 2026). Columns:
 
 `pipeline/validate_stadiums.py` checks every row: ids match schedules both ways, the time zone matches `timezonefinder` for the coordinates, and the stadium is within 30 km of its geocoded municipality.
 
-nflverse lists several upcoming 2026 international games with placeholder roofs (Melbourne Cricket Ground, Allianz Arena and Stade de France as `dome`; Bernabeu blank). The CSV records their real roof types.
+nflverse lists several 2026 international games with placeholder roofs: Melbourne Cricket Ground (played in week 1), Allianz Arena and Stade de France as `dome`, and the Bernabeu blank. The CSV records their real roof types; see the Phase 2 weather rule under `raw.game_weather`.
