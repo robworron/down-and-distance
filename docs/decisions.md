@@ -138,3 +138,17 @@ Where the project deviates from `docs/build-plan.md`, and why. Newest last. Wher
 - **Rest:** 5 days or less counts as `short`, including Friday games after a Sunday, even though from 2026 the NFL no longer calls Friday games a short week. The bucket describes days of rest, not the league's label.
 - **Venue:** at a neutral site both teams' `venue` is `neutral`; `is_home` still marks the designated home team.
 - **Team codes:** staging maps relocated teams' codes to today's franchise (OAK→LV, SD→LAC, STL→LA) everywhere, keeping the listed codes on `stg_schedules`. `stg_teams` holds the 32 current franchises only (LAR, a second Rams code in nflverse's teams data, is dropped too). A franchise's history reads as one team, e.g. the Raiders' Oakland years under LV.
+
+## 2026-10-17 — Six more kickoff corrections (step 2.7)
+
+- **Changed:** `schedule_corrections.csv` gains six `gametime` fixes (124 values in all). They turned up while checking 2.7's body clocks, and each is confirmed by the NFL's gamebook or the teams' published schedules.
+  - Five 2000 home games are listed an hour early. nflverse mishandled daylight saving time in the two zones that skipped it:
+    - Colts `2000_02_OAK_IND` and `2000_08_NE_IND` are at 12:00. They kicked off at noon in Indianapolis, which was 1:00 pm ET.
+    - Cardinals `2000_04_GB_ARI` is at 15:05, and `2000_06_CLE_ARI` and `2000_07_PHI_ARI` at 15:15. They kicked off at 1:05 and 1:15 pm in Arizona, so 4:05 and 4:15 pm ET.
+  - `2016_02_TB_ARI` is listed at 13:00, which was the 1:05 pm local kickoff written as ET. It kicked off at 16:05 ET.
+- **Guard:** `stg_no_early_local_kickoff` fails if a finished game at a team's own stadium kicks off before 11:30 local time. The earliest real ones are three 11:30 am Central playoff games in 2000–01. It would not have caught the three 2000 Arizona games, at 12:05 and 12:15 local. Those were found by listing every Arizona home kickoff during daylight saving time.
+- **Why:**
+  - Wrong kickoffs give wrong body clocks: the 2016 game read 10:00 am for Arizona at home.
+  - They also give wrong time slots: four games move from `sunday_early` to `sunday_late`.
+  - The three open-air 2000 Arizona games took their weather from an hour too early. The local weather reload (`--only weather --seasons 2000,2016`, from the cache) updated the 4 games that have weather rows.
+- **Neon:** step 2.13's weather reload now also needs 2016: `--seasons 2000-2005,2016-2018,2025`. This replaces the list in the 2.4 entry.

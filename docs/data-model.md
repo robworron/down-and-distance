@@ -50,7 +50,7 @@ Loaded on 2026-10-17 (step 1.10) with `ingest --full`, `DATABASE_URL` set to the
 | `raw.teams` | 36 | 72 kB |
 | `raw.game_weather` | 5,945 | 1.3 MB |
 
-Neon's `raw.game_weather` predates the schedule corrections (step 2.4): reload `--only weather --seasons 2000-2005,2017,2018,2025` against Neon before step 2.13 (local now has 5,946 rows).
+Neon's `raw.game_weather` predates the schedule corrections (steps 2.4 and 2.7): reload `--only weather --seasons 2000-2005,2016-2018,2025` against Neon before step 2.13 (local now has 5,946 rows).
 | `raw.pbp` | 498,285 | 182 MB |
 | Whole database | | 195 MB of the 1 GB free plan |
 
@@ -120,7 +120,7 @@ The 99% coverage check (`weather_coverage.sql`) uses this same rule. It counts 5
 
 **Amounts are model estimates, not gauge readings.** Open-Meteo's archive comes from reanalysis weather models that describe the atmosphere on a coarse grid (cells roughly 10–30 km across, depending on the model it blends). A grid cell averages out local squalls and narrow lake-effect snow bands. The 2017 Colts–Bills snow game shows only 0.99 in of snow over the game window, far below the lake-effect snow that buried the field. Temperature and wind, which vary smoothly, agree well with nflverse's reported values; precipitation and snow amounts are the least reliable. **Phase 2 should bucket precipitation and snowfall as none / light / heavy** (thresholds set in step 2.5) rather than trusting exact amounts. Open-Meteo's `precipitation` includes melted snow, so in a snow game both totals are non-zero: call it snow when `snowfall_total_in` > 0, otherwise rain when `precipitation_total_in` > 0.
 
-**Corrected kickoffs and venues (step 2.4).** The loader applies `transform/seeds/schedule_corrections.csv` before choosing hours and coordinates: 107 kickoff times nflverse lists wrongly (2000–05 night games at `09:00` instead of 21:00, five 2017–18 London games at `21:30` instead of 09:30) and 8 international games filed under the home team's US stadium (2025's seven, plus `2026_05_PHI_JAX`). The reload updated 93 rows and added the São Paulo game (previously skipped as SoFi's dome). On the 87 re-timed open-air games, agreement with nflverse's `temp` rose from r = 0.854 (mean gap −6.6 °F) to 0.973 (−2.1 °F).
+**Corrected kickoffs and venues (step 2.4).** The loader applies `transform/seeds/schedule_corrections.csv` before choosing hours and coordinates: 107 kickoff times nflverse lists wrongly (2000–05 night games at `09:00` instead of 21:00, five 2017–18 London games at `21:30` instead of 09:30) and 8 international games filed under the home team's US stadium (2025's seven, plus `2026_05_PHI_JAX`). The reload updated 93 rows and added the São Paulo game (previously skipped as SoFi's dome). On the 87 re-timed open-air games, agreement with nflverse's `temp` rose from r = 0.854 (mean gap −6.6 °F) to 0.973 (−2.1 °F). Step 2.7 added six more kickoff times. Five 2000 Colts and Cardinals home games were an hour early, because Indiana and Arizona skipped daylight saving time. `2016_02_TB_ARI` was listed at 13:00 instead of 16:05. Reloading 2000 and 2016 updated the 4 of them that have weather rows.
 
 Checks at load (step 1.6, 2026-10-16, local): 100% of finished outdoor and open-roof games from 2000 have weather (5,309 of 5,309; `pipeline/sql/checks/weather_coverage.sql`). Against nflverse's `temp` over 5,054 games: correlation 0.978, mean gap −0.3 °F, median absolute gap 1.9 °F (`weather_vs_nflverse_temp.sql`); 0.981 after step 2.4's corrections. The 2017 Colts–Bills snow game shows 0.25 in of snow in the kickoff hour and 0.99 in over the game window.
 
@@ -168,6 +168,7 @@ The macro `current_team(column)` maps a team code through `team_code_map`. 879 g
 
 - `stg_kickoff_matches_weather`: staging's `kickoff_utc` equals the weather loader's for every game with weather.
 - `stg_no_early_kickoff_unless_neutral`: no non-neutral game kicks off before 09:30 ET (catches clock slips).
+- `stg_no_early_local_kickoff`: no finished game at a team's own stadium kicks off before 11:30 local time. This catches times listed in local time instead of ET. On nflverse's uncorrected times it returns 104 games.
 - `neutral_site_not_at_team_home`: no neutral-site game (Super Bowls exempt) is at the regular home stadium of either team playing (catches international games filed under a US stadium). On the uncorrected data it returns the 8 known games.
 
 ## Marts layer
@@ -188,7 +189,7 @@ One row per game since 1999 (7,548 as of 2026-10-17), key `game_id`. Joins `stg_
 | `temperature_bucket` | 51_to_79 2,979 · 33_to_50 1,359 · 80_or_above 550 · 32_or_below 423 · NULL 2,237 | ≤32 / 33–50 / 51–79 / ≥80 °F |
 | `wind_bucket` | under_10 3,305 · 10_to_14 1,473 · 15_plus 533 · NULL 2,237 | <10 / 10–14 / ≥15 mph |
 | `precipitation_bucket` | none 4,432 · light_rain 532 · heavy_rain 201 · snow 146 · NULL 2,237 | snow if snowfall > 0; else heavy_rain ≥ 0.10 in, light_rain ≥ 0.01 in, else none |
-| `time_slot` | sunday_early 3,808 · sunday_late 1,884 · mnf 472 · snf 457 · tnf 287 · saturday 252 · other 129 · NULL 259 | Eastern kickoff: Thu ≥19:00 tnf; Sun 12:00–15:59 early, 16:00–18:59 late, ≥19:00 snf; Mon ≥19:00 mnf; any Saturday; else other. NULL for 1999 |
+| `time_slot` | sunday_early 3,804 · sunday_late 1,888 · mnf 472 · snf 457 · tnf 287 · saturday 252 · other 129 · NULL 259 | Eastern kickoff: Thu ≥19:00 tnf; Sun 12:00–15:59 early, 16:00–18:59 late, ≥19:00 snf; Mon ≥19:00 mnf; any Saturday; else other. NULL for 1999 |
 | `is_primetime` | true 1,328 · false 5,961 · NULL 259 | Kickoff at 19:00 ET or later |
 | `opponent_type` | divisional 2,831 · conference 2,814 · non_conference 1,903 | `div_game`; else same conference (Seattle AFC before 2002) |
 | `is_neutral_site` | | `location = 'Neutral'` |
@@ -222,7 +223,7 @@ Hand-made reference CSVs in `transform/seeds/`, loaded by `dbt seed` (`uv run py
 | ------------------- | -------------------- | ------------- | --------------------------------------------------------------- |
 | `stadiums.csv`      | stadium              | `stadium_id`  | Coordinates, IANA time zone, altitude, roof and surface (1.5)   |
 | `team_code_map.csv` | old team code        | `old_code`    | Maps relocated teams' codes to today's code, e.g. OAK→LV (1.4)  |
-| `schedule_corrections.csv` | game × column | `(game_id, column_name)` | Fixes for values nflverse publishes wrongly: kickoff times, venues, roofs (2.4) |
+| `schedule_corrections.csv` | game × column | `(game_id, column_name)` | Fixes for values nflverse publishes wrongly: kickoff times, venues, roofs (2.4, 2.7) |
 
 ### stadiums.csv
 
