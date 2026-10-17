@@ -52,8 +52,34 @@ models:
               arguments:
                 values: [divisional, conference, non_conference]
 
+  - name: team_seasons
+    description: One row per team per season with the stadium it called home (most non-neutral home games that season). team_games measures travel from it.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [team, season]
+    columns:
+      - name: team
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_teams')
+                field: team_abbr
+      - name: season
+        data_tests: [not_null]
+      - name: home_stadium_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stadiums')
+                field: stadium_id
+      - name: home_timezone
+        data_tests: [not_null]
+
   - name: team_games
-    description: Two rows per game since 1999, one per team, with team-level fields (points, result, rest, spread from the team's side) and every game-level situation.
+    description: Two rows per game since 1999, one per team, with team-level fields (points, result, rest, spread from the team's side, travel and body clock) and every game-level situation.
     data_tests:
       - unique_combination:
           arguments:
@@ -99,3 +125,25 @@ models:
           - accepted_values:
               arguments:
                 values: [big_favourite, favourite, pickem, underdog, big_underdog]
+      - name: home_stadium_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stadiums')
+                field: stadium_id
+      - name: travel_miles
+        data_tests: [not_null]
+      - name: time_zone_shift
+        data_tests: [not_null]
+      - name: time_zone_travel
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [none, eastbound_1_3, westbound_1_3, long_haul_4_plus]
+      - name: body_clock
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [morning, afternoon, late_afternoon, night]

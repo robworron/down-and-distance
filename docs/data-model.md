@@ -198,9 +198,18 @@ Weather buckets are NULL for closed-roof games, 1999, upcoming games and the las
 
 **Tests:** `unique`/`not_null` on `game_id`; `accepted_values` on every bucket; `not_null` on `surface_type`, `opponent_type`, `is_open_air`, `is_neutral_site`. Singular: row count equals `stg_schedules`; non-open-air games have no weather; open-air games with a weather row have all three weather buckets; the Melbourne game is open air with weather; every finished game has a roof type (except Madrid 2025); `div_game` matches today's divisions from 2002; nflverse's `weekday` matches `gameday`.
 
+### team_seasons
+
+One row per team per season (893 as of 2026-10-17), key `(team, season)`: the stadium the team called home, i.e. where it played most of its non-neutral home games that season (ties would go to the latest used). Columns: `home_stadium_id`, `home_stadium_name`, `home_timezone`, `home_latitude`, `home_longitude`, `home_games`. Only six team-seasons used more than one home stadium:
+- The 2005 Saints after Hurricane Katrina: home is Baton Rouge, 4 games; they also played 3 in San Antonio and 1 at Giants Stadium.
+- The Bills in 2009–12, with one Toronto game a year: home is Orchard Park.
+- The 2010 Vikings: home is the Metrodome, with one game at TCF Bank Stadium after the roof fell in.
+
+**Tests:** `unique_combination` on `(team, season)`; `not_null`; `relationships` to `stg_teams` and `stadiums`.
+
 ### team_games
 
-Two rows per game (15,096 as of 2026-10-17), key `(game_id, team)`: each game from each team's point of view. Built from `games` with `UNION ALL` (a home branch and an away branch), then joined back to `games` for every game-level situation column above, so the splits marts read one table.
+Two rows per game (15,096 as of 2026-10-17), key `(game_id, team)`: each game from each team's point of view. Built from `games` with `UNION ALL` (a home branch and an away branch), then joined back to `games` for every game-level situation column above, so the splits marts read one table. Travel columns come from `team_seasons` (the team's home) and `stadiums` (the venue).
 
 | Column | Values (local counts) | Rule |
 | ------ | ------ | ---- |
@@ -212,8 +221,27 @@ Two rows per game (15,096 as of 2026-10-17), key `(game_id, team)`: each game fr
 | `rest_bucket` | normal 12,669 · bye 1,053 · extra 726 · short 648 | ≤5 short, 6–8 normal, 9–12 extra, ≥13 bye |
 | `team_spread` | | Betting convention, negative = favourite: home `−spread_line`, away `+spread_line` |
 | `spread_role` | favourite 3,645 · underdog 3,645 · pickem 3,018 · big_favourite 2,228 · big_underdog 2,228 · NULL 332 | ≤−7 big_favourite, −6.5 to −3 favourite, under 3 either way pickem, +3 to +6.5 underdog, ≥+7 big_underdog |
+| `home_stadium_id` | | This team's home that season (`team_seasons`) |
+| `travel_miles` | 0 to 7,929 | Great-circle (haversine) miles from the home stadium to the game's stadium. 0 at the team's own stadium, including the Jets' and Chargers' 10 "away" games at the stadium they share with the Giants and Rams |
+| `time_zone_shift` | −7 to +9 | Hours the venue's clock is ahead of the team's home clock at kickoff (+ = travelled east), from IANA zones, so daylight saving time is handled; wrapped into −12..+12 (LA→Melbourne, +17, is −7). 1999 has no kickoff times, so it uses 1 pm ET on the game day |
+| `time_zone_travel` | none 10,530 · eastbound_1_3 2,231 · westbound_1_3 2,222 · long_haul_4_plus 113 | 0 none; +1 to +3 eastbound; −1 to −3 westbound; 4+ either way long haul (almost all trips to Europe) |
+| `body_clock_time` | | Kickoff on the team's home clock (Seattle at 1 pm ET: 10:00). Every row: for the home team it's local time. NULL in 1999 |
+| `body_clock` | afternoon 9,548 · night 2,125 · late_afternoon 2,085 · morning 820 · NULL 518 | Before 12:00 morning; 12:00–15:59 afternoon; 16:00–18:59 late_afternoon; 19:00 or later night |
 
-**Tests:** `unique_combination` on `(game_id, team)`; `not_null` and `relationships` on `game_id` and `team`; `accepted_values` on `venue`, `result`, `rest_bucket`, `spread_role`. Singular: exactly two rows per game (the step 2.6 check); the two rows mirror each other (opponents, points, home flag, and spread, rest and margin differences cancel); Super Bowl LVII's spread sign (PHI −1, KC +1, KC won by 3 and covered). Breaking the away spread's sign or dropping the away rows makes these fail.
+**Tests:**
+- `unique_combination` on `(game_id, team)`.
+- `not_null` and `relationships` on `game_id`, `team` and `home_stadium_id`; `not_null` on `travel_miles` and `time_zone_shift`.
+- `accepted_values` on `venue`, `result`, `rest_bucket`, `spread_role`, `time_zone_travel`, `body_clock`.
+- Singular:
+  - Exactly two rows per game (the step 2.6 check).
+  - The two rows mirror each other: opponents, points, home flag, and spread, rest and margin differences cancel.
+  - Super Bowl LVII's spread sign: PHI −1, KC +1, KC won by 3 and covered.
+  - Breaking the away spread's sign or dropping the away rows makes these fail.
+- Travel spot checks (step 2.7):
+  - Seattle at Pittsburgh at 1 pm ET: 10:00 body clock, +3, 2,132 miles.
+  - Arizona and the Rams: 0 zones in October, ±1 in December.
+  - Melbourne: −7.
+  - No team at its own stadium has travelled.
 
 ## Seeds
 

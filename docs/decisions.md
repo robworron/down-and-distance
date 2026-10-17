@@ -152,3 +152,12 @@ Where the project deviates from `docs/build-plan.md`, and why. Newest last. Wher
   - They also give wrong time slots: four games move from `sunday_early` to `sunday_late`.
   - The three open-air 2000 Arizona games took their weather from an hour too early. The local weather reload (`--only weather --seasons 2000,2016`, from the cache) updated the 4 games that have weather rows.
 - **Neon:** step 2.13's weather reload now also needs 2016: `--seasons 2000-2005,2016-2018,2025`. This replaces the list in the 2.4 entry.
+
+## 2026-10-17 — Travel and body clock (step 2.7)
+
+- **Home stadium:** `team_seasons` takes each team's home per season as the stadium of most of its non-neutral home games, ties to the latest used. Travel is measured from there, including for a designated home team at a neutral site.
+- **Time zones:** `time_zone_shift` is the venue's UTC offset minus the home stadium's, both read at the kickoff instant with IANA zones, so Arizona's year-round standard time is handled. It's wrapped into −12..+12, because the body adjusts the short way round: LA to Melbourne is 7 zones west, not 17 east. 1999 has no kickoff times, so it reads the clocks at 1 pm ET on the game day.
+- **Time-zone travel buckets (Rob's choice):** `none` / `eastbound_1_3` / `westbound_1_3` / `long_haul_4_plus`. Over finished games that's 10,265 / 2,175 / 2,167 / 105. The plan's buckets left trips of 4+ zones out, and putting them in "3 zones" would hide them. Nearly all of them are to Europe; the 2 westbound ones are the 2026 Melbourne game. The signed shift stays a number for the models.
+- **Body clock (Rob's choice):** kickoff on the team's home clock, bucketed at noon, 4 pm and 7 pm into `morning` / `afternoon` / `late_afternoon` / `night`, on every row; for the home team it's local time. Over finished games: 789 / 9,293 / 2,049 / 2,063, plus 518 from 1999 with no kickoff time.
+- **Distance:** `travel_miles`, the haversine distance on a sphere of radius 3,958.8 miles, rounded. Teams playing at their own stadium read 0, including the Jets and Chargers on the road at the stadium they share.
+- **Why:** these are the plan's v1 situations 9 and 10, plus the plan's travel distance, with the edge cases (DST, the date line, 1999, shared stadiums) decided once here.
