@@ -1,0 +1,126 @@
+version: 2
+
+models:
+  - name: stg_schedules
+    description: One row per game since 1999, with nflverse's known errors corrected, types fixed and team codes standardised.
+    columns:
+      - name: game_id
+        data_tests: [unique, not_null]
+      - name: season
+        data_tests: [not_null]
+      - name: game_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [REG, WC, DIV, CON, SB]
+      - name: location
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [Home, Neutral]
+      - name: roof
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [outdoors, dome, open, closed]
+      - name: home_team
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_teams')
+                field: team_abbr
+      - name: away_team
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_teams')
+                field: team_abbr
+      - name: stadium_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stadiums')
+                field: stadium_id
+
+  - name: stg_teams
+    description: The 32 current franchises.
+    columns:
+      - name: team_abbr
+        data_tests: [unique, not_null]
+      - name: conference
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [AFC, NFC]
+
+  - name: stg_game_weather
+    description: Open-Meteo weather per finished game from 2000 outside fixed domes.
+    columns:
+      - name: game_id
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_schedules')
+                field: game_id
+
+  - name: stg_pbp
+    description: One row per play since 2016.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [game_id, play_id]
+    columns:
+      - name: game_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_schedules')
+                field: game_id
+      - name: play_id
+        data_tests: [not_null]
+      - name: posteam
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_teams')
+                field: team_abbr
+      - name: defteam
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_teams')
+                field: team_abbr
+
+seeds:
+  - name: stadiums
+    columns:
+      - name: stadium_id
+        data_tests: [unique, not_null]
+  - name: team_code_map
+    columns:
+      - name: old_code
+        data_tests: [unique, not_null]
+  - name: schedule_corrections
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [game_id, column_name]
+    columns:
+      - name: game_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('raw', 'schedules')
+                field: game_id
+      - name: column_name
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [gametime, stadium_id, roof]

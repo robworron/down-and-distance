@@ -151,6 +151,25 @@ Play-by-play from 2016, trimmed to 60 of nflverse's 372 columns (chosen and just
 
 **Size (step 1.7, 2026-10-16, local):** 498,285 plays in 2,841 games, 2016 to 2026 week 6. 197 MB in total: 159 MB table, 33 MB primary key, 5 MB `(season, posteam)` index. Every `game_id` exists in `raw.schedules`.
 
+## Staging layer
+
+Built by dbt (`uv run python -m pipeline dbt build`) from `transform/models/staging/`. One view per raw table: views store nothing and always reflect the current raw data. Every later model reads staging, never `raw`.
+
+| Model | Grain | Key | Rows (2026-10-17, local) | What it cleans |
+| ----- | ----- | --- | ------------------------ | -------------- |
+| `stg_schedules` | game | `game_id` | 7,548 | Applies `schedule_corrections`; `gameday` → date; `kickoff_et` (Eastern wall clock) and `kickoff_utc` (`AT TIME ZONE 'America/New_York'`); team codes → today's franchise, with `home_team_listed`/`away_team_listed` kept; 0/1 → boolean (`div_game`, `overtime`); `roof`/`surface` trimmed, blanks → NULL; nflverse's `temp`/`wind` renamed `nflverse_temp_f`/`nflverse_wind_mph`; lines as `numeric(4,1)` |
+| `stg_teams` | current franchise | `team_abbr` | 32 | Drops OAK, SD, STL and LAR (mapped to LV, LAC, LA); `conference`, `division` |
+| `stg_game_weather` | game | `game_id` | 5,946 | Integer casts; drops `_loaded_at` |
+| `stg_pbp` | play | `(game_id, play_id)` | 498,285 | Team codes → today's franchise; `desc` → `play_description`; 0/1 flags stay small integers so `sum()`/`avg()` give counts and rates |
+
+The macro `current_team(column)` maps a team code through `team_code_map`. 879 games carry an old code (OAK, SD or STL).
+
+**Tests** (`transform/models/staging/_staging.yml`, `transform/tests/`): `unique` + `not_null` on every key (the custom generic test `unique_combination` for multi-column keys); `relationships` from schedule teams, play-by-play teams and `game_id`s, weather `game_id`s and corrected `stadium_id`s; `accepted_values` on `game_type`, `location`, `roof` and `conference`. Singular tests:
+
+- `stg_kickoff_matches_weather`: staging's `kickoff_utc` equals the weather loader's for every game with weather.
+- `stg_no_early_kickoff_unless_neutral`: no non-neutral game kicks off before 09:30 ET (catches clock slips).
+- `neutral_site_not_at_team_home`: no neutral-site game (Super Bowls exempt) is at the regular home stadium of either team playing (catches international games filed under a US stadium). On the uncorrected data it returns the 8 known games.
+
 ## Seeds
 
 Hand-made reference CSVs in `transform/seeds/`, loaded by `dbt seed` (`uv run python -m pipeline dbt seed`) into the `staging` schema, e.g. `staging.stadiums`.

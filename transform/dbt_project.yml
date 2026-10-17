@@ -41,3 +41,12 @@ seeds:
       +column_types:
         old_code: text
         current_code: text
+    schedule_corrections:
+      # All text: "21:00" must stay a string, and a blank corrected_value loads
+      # as NULL (meaning "unknown").
+      +column_types:
+        game_id: text
+        column_name: text
+        nflverse_value: text
+        corrected_value: text
+        note: text

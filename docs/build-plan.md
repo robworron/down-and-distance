@@ -215,7 +215,7 @@ Goal: one `team_games` table with a row per team per game, carrying every situat
   - Done when: `dbt debug` passes.
 - [x] **2.3 Seeds and sources.** Load the stadiums CSV with `dbt seed`; declare the raw tables in `sources.yml`.
   - Done when: `dbt seed` loads the stadiums and `dbt ls` lists the sources.
-- [ ] **2.4 Staging models.** One `stg_` model per raw table: rename columns, fix types, standardise team codes, build `kickoff_utc`.
+- [x] **2.4 Staging models.** One `stg_` model per raw table: rename columns, fix types, standardise team codes, build `kickoff_utc`.
   - Learn: the staging layer; casting; `AT TIME ZONE`.
   - Done when: `dbt build` passes `unique` and `not_null` tests on every key.
 - [ ] **2.5 The games model.** One row per game joining schedules, stadiums and weather, with game-level situations: roof, surface, temperature, precipitation and wind buckets, time slot, primetime, opponent type, neutral site.
