@@ -164,7 +164,7 @@ Built by dbt (`uv run python -m pipeline dbt build`) from `transform/models/stag
 
 The macro `current_team(column)` maps a team code through `team_code_map`. 879 games carry an old code (OAK, SD or STL).
 
-**Tests** (`transform/models/staging/_staging.yml`, `transform/tests/`): `unique` + `not_null` on every key (the custom generic test `unique_combination` for multi-column keys); `relationships` from schedule teams, play-by-play teams and `game_id`s, weather `game_id`s and corrected `stadium_id`s; `accepted_values` on `game_type`, `location`, `roof` and `conference`. Singular tests:
+**Tests** (`transform/models/staging/_staging.yml`, `transform/tests/`): `unique` + `not_null` on every key (the custom generic test `unique_combination` for multi-column keys); `relationships` from schedule teams, play-by-play teams and `game_id`s, weather `game_id`s and corrected `stadium_id`s; `accepted_values` on `game_type`, `location`, `roof`, `conference`, `division` and `stg_pbp.season_type`; `not_null` on every column that is never NULL (step 2.12: e.g. week, rest days, team names, the weather loader's kickoff and game-window values). The seeds get the same: `not_null` on every `stadiums` column, `accepted_values` on its `roof`, and `relationships` from `team_code_map.current_code` to `stg_teams`. Singular tests:
 
 - `stg_kickoff_matches_weather`: staging's `kickoff_utc` equals the weather loader's for every game with weather.
 - `stg_no_early_kickoff_unless_neutral`: no non-neutral game kicks off before 09:30 ET (catches clock slips).
@@ -196,7 +196,7 @@ One row per game since 1999 (7,548 as of 2026-10-17), key `game_id`. Joins `stg_
 
 Weather buckets are NULL for closed-roof games, 1999, upcoming games and the last ~8 days of games (Open-Meteo's archive lag).
 
-**Tests:** `unique`/`not_null` on `game_id`; `accepted_values` on every bucket; `not_null` on `surface_type`, `opponent_type`, `is_open_air`, `is_neutral_site`. Singular: row count equals `stg_schedules`; non-open-air games have no weather; open-air games with a weather row have all three weather buckets; the Melbourne game is open air with weather; every finished game has a roof type (except Madrid 2025); `div_game` matches today's divisions from 2002; nflverse's `weekday` matches `gameday`.
+**Tests:** `unique`/`not_null` on `game_id`; `accepted_values` on `game_type` and every bucket; `not_null` on every column that is never NULL (`season`, `week`, `gameday`, `is_finished`, rest days, `stadium_id` with `relationships` to `stadiums`, `surface_type`, `opponent_type`, `is_open_air`, `is_neutral_site`, …). Singular: every finished game has both scores, the overtime flag and both betting lines, and an unplayed game has no scores (`games_finished_complete`, step 2.12); row count equals `stg_schedules`; non-open-air games have no weather; open-air games with a weather row have all three weather buckets; the Melbourne game is open air with weather; every finished game has a roof type (except Madrid 2025); `div_game` matches today's divisions from 2002; nflverse's `weekday` matches `gameday`.
 
 ### team_seasons
 
@@ -205,7 +205,7 @@ One row per team per season (893 as of 2026-10-17), key `(team, season)`: the st
 - The Bills in 2009–12, with one Toronto game a year: home is Orchard Park.
 - The 2010 Vikings: home is the Metrodome, with one game at TCF Bank Stadium after the roof fell in.
 
-**Tests:** `unique_combination` on `(team, season)`; `not_null`; `relationships` to `stg_teams` and `stadiums`.
+**Tests:** `unique_combination` on `(team, season)`; `not_null` on every column; `relationships` to `stg_teams` and `stadiums`.
 
 ### team_game_stats
 
@@ -229,7 +229,7 @@ One row per team per game with play-by-play (5,682 rows, 2,841 games, 2016 to 20
 League rates come out as expected: 5.3–5.6 yards per play, EPA/play near 0, success rate about 0.44, 2020 the highest-scoring season.
 
 **Tests:**
-- `unique_combination` on `(game_id, team)`; `not_null`; `relationships` to `games` and `stg_teams`.
+- `unique_combination` on `(game_id, team)`; `not_null` on every column (a team with no penalties has 0, not NULL); `relationships` to `games` and `stg_teams`.
 - Singular:
   - Both box scores above.
   - Exactly two rows per game with play-by-play, each row's defense equal to the other row's offense.
@@ -275,7 +275,7 @@ This matters for Phase 6: a prediction can only use what was known before kickof
 
 **Tests:**
 - `unique_combination` on `(game_id, team)`.
-- `not_null` and `relationships` on `game_id`, `team` and `home_stadium_id`; `not_null` on `travel_miles` and `time_zone_shift`.
+- `not_null` and `relationships` on `game_id`, `team` and `home_stadium_id`; `not_null` on every column that is never NULL: identity, `is_finished`, rest, `travel_miles`, `time_zone_shift`, `stadium_id`, `surface_type`, `is_open_air`, `opponent_type` and the form counts.
 - `accepted_values` on `season_type`, `venue`, `result`, `rest_bucket`, `spread_role`, `ats_result`, `total_result`, `time_zone_travel`, `body_clock`.
 - Singular:
   - Exactly two rows per game (the step 2.6 check).
@@ -316,7 +316,7 @@ A team's record in every situation value, per season and season type (step 2.11)
 
 The play-by-play sums are NULL (not 0) when `stats_games` is 0: no data, not zero plays. `SUM` skips NULLs, so a 2014–2017 range adds the 2016–17 stats and divides by their `stats_games`. Counts and integer sums are `integer` (the site's `pg` driver returns `bigint` as a string); `epa` and `def_epa` are `double precision`.
 
-**Tests:** `unique_combination` on the grain; `not_null` on the grain and `games`; `relationships` from `team` to `stg_teams` and from `situation_key` to `situations`; `accepted_values` on `season_type` and `situation_level`. Singular tests below, with the league mart.
+**Tests:** `unique_combination` on the grain; `not_null` on the grain and every count (games through `stats_games`; the play-by-play sums may be NULL); `relationships` from `team` to `stg_teams` and from `situation_key` to `situations`; `accepted_values` on `season_type` and `situation_level`. Singular tests below, with the league mart.
 
 ### mart_league_splits
 
@@ -344,7 +344,16 @@ The whole league per season, season type and situation value (step 2.11): `mart_
 - `mart_splits_cover_every_game`: for each situation, season and season type, the league's games, wins, ties, points and plays over all values equal the finished `team_games` rows with a value, counted directly. Generated from the registry.
 - `league_splits_2020_home_dip`: 2020 has the lowest regular-season home win % of every complete season (any season whose regular season is fully played).
 - `splits_2020_home_record`: pins the reconciliation: home 253 games 127–125–1, neutral 6 at 3–3, SF neutral 0–3.
+- `mart_splits_counts_consistent` (step 2.12), on both marts: wins + losses + ties = games; covers and pushes fit inside `ats_games`; overs + unders + pushes = `ou_games`; `stats_games` ≤ games; the play-by-play sums are NULL exactly when `stats_games` is 0.
 - Adding a game to one league row fails the first two; lowering 2019's home wins fails the dip test.
+
+## Documentation
+
+Every model, seed and column in `staging` and `marts` has a description (step 2.12): 391 columns. They live in the YAML files beside the models (`_staging.yml`, `_marts.yml`). A column shared by several models (`game_id`, `plays`, `epa`, …) is described once, in a docs block in `transform/models/_docs.md`, and referenced with `{{ doc('plays') }}`, so the four marts that carry the play-by-play stats say the same thing.
+
+- **In the database.** `+persist_docs` (`transform/dbt_project.yml`) writes each description into Postgres as a `COMMENT` on the table, view or column every time dbt builds it. DBeaver shows them in a table's Properties and Columns tabs, and `\d+ marts.mart_team_splits` shows them in psql.
+- **As a website.** `uv run python -m pipeline dbt docs generate` writes `transform/target/` (the manifest of every model and test, plus a catalog of real column types read from the database). The `dbt-docs` entry in `.claude/launch.json` serves it at http://localhost:8080: model pages with columns, types, descriptions and tests (N not_null, U unique, A accepted_values, F relationships), the SQL, and the lineage graph (the button at the bottom right).
+- **Lineage.** The graph draws every `ref()` and `source()`: raw tables → staging views (and seeds) → `games`, `team_seasons`, `team_game_stats` → `team_games` (+ `situations`) → `mart_team_splits` → `mart_league_splits`.
 
 ## Seeds
 

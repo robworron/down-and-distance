@@ -16,6 +16,11 @@ flags:
 
 models:
   down_and_distance:
+    # Write the YAML descriptions into Postgres as COMMENTs on each table,
+    # view and column (step 2.12), so DBeaver and psql's \d+ show them too.
+    +persist_docs:
+      relation: true
+      columns: true
     # Staging: one cleaned view per raw table. Views store nothing and always
     # show the current raw data.
     staging:
@@ -31,6 +36,9 @@ seeds:
     # Hand-made reference CSVs, loaded by `dbt seed` into staging beside the
     # staging views, so the database keeps its three schemas.
     +schema: staging
+    +persist_docs:
+      relation: true
+      columns: true
     stadiums:
       +column_types:
         stadium_id: text

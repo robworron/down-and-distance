@@ -239,7 +239,7 @@ Goal: one `team_games` table with a row per team per game, carrying every situat
 - [x] **2.11 Split marts.** `mart_team_splits` and `mart_league_splits` per season per situation value, storing sums and counts rather than averages.
   - Learn: additive measures. An average of averages is wrong; summed totals divided by summed counts over any season range is right.
   - Done when: league home win % by season shows the 2020 dip.
-- [ ] **2.12 Tests and docs.** Fill test gaps; run `dbt docs generate` and look at the lineage graph.
+- [x] **2.12 Tests and docs.** Fill test gaps; run `dbt docs generate` and look at the lineage graph.
   - Done when: `dbt build` passes end to end.
 - [ ] **2.13 Build in production.** Run `dbt build` against Neon.
   - Done when: the marts exist in Neon and storage is still under budget.

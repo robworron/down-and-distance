@@ -202,3 +202,11 @@ Where the project deviates from `docs/build-plan.md`, and why. Newest last. Wher
 - **`situation_level` carried in both marts:** the registry's `game` / `team` level, so a league view can filter to team-level situations for win % without a join.
 - **Types:** every count and integer sum is cast to `integer`. Postgres's `SUM` of a `bigint` is `numeric`, and the site's `pg` driver returns `bigint` as a string (the 1.10 lesson).
 - **Why:** these follow the plan's 2.11 with Rob's two answers; the rest makes the marts safe to re-aggregate over any season range.
+
+## 2026-10-17 — Tests and docs (step 2.12)
+
+- **Every column described, shared ones once:** all 391 columns of the staging and marts relations (seeds included) have a description. Columns that several models carry (the 24 play-by-play stats, the game-level situations, the keys) use dbt docs blocks in `transform/models/_docs.md`, so their meaning can't drift between models.
+- **Comments in Postgres:** `+persist_docs` (relation and columns) for models and seeds, so DBeaver and psql show the descriptions without the docs site.
+- **Test gaps:** `not_null` on every column that is never NULL by design, `accepted_values` on `division`, the stadium roof and `stg_pbp.season_type`, and two singular tests: `games_finished_complete` (a finished game has scores, the overtime flag and both lines, which `ats_result` and `total_result` rely on) and `mart_splits_counts_consistent` (each split row's counts agree with each other). Columns left without a column test are NULL for documented reasons (1999 kickoffs, unplayed games, pre-2016 stats, open-air-only weather) or are pinned by singular tests (box scores, mirror, additivity). The build went from 166 to 290 checks.
+- **Docs server:** the `dbt-docs` launch entry serves `transform/target/` with Python's `http.server`, not `dbt docs serve`. `dbt docs serve` is a single-threaded server, and the browser pane's speculative pre-connection takes its only slot, so `catalog.json` never loads and the page stays empty. The files served are identical; run `dbt docs generate` first.
+- **Why:** the plan's 2.12 asks for test gaps filled and the lineage graph; descriptions in the database and the docs site make every column explainable to someone who has only the database in front of them.
