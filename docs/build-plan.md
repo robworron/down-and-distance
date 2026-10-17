@@ -252,7 +252,7 @@ Goal: find out which situations actually matter before building pages around the
 
 - [x] **3.1 Notebook setup.** Add `jupyter`, `pandas` and `matplotlib`; write a helper that reads a mart into pandas.
   - Done when: a notebook plots games per season.
-- [ ] **3.2 Sanity checks against known facts.** League home win % and average margin by season; points per game by season.
+- [x] **3.2 Sanity checks against known facts.** League home win % and average margin by season; points per game by season.
   - Done when: your numbers match published figures, e.g. home teams finishing below .500 in 2020.
 - [ ] **3.3 League-wide situation effects.** For each v1 situation: margin, EPA/play and total points against the league baseline, with n and a 95% confidence interval.
   - Learn: standard error and confidence intervals.
