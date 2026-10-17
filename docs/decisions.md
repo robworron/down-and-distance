@@ -106,3 +106,8 @@ Where the project deviates from `docs/build-plan.md`, and why. Newest last. Wher
 
 - **Changed:** dbt-core 1.12 and dbt-postgres 1.11 (both pinned below 2.0, which is still a release candidate). `dbt_project.yml` was written by hand instead of `dbt init`, which would have nested a second project folder inside `transform/`. `transform/profiles.yml` is committed with no secrets: it reads `DBT_HOST`, `DBT_PORT`, `DBT_USER`, `DBT_PASSWORD`, `DBT_DBNAME` and `DBT_SSLMODE`, which `uv run python -m pipeline dbt …` (`pipeline/run_dbt.py`) fills in from `DATABASE_URL`. A `generate_schema_name` macro makes models land in exactly `staging` and `marts`, not dbt's default `staging_marts`-style names. Anonymous usage stats are off.
 - **Why:** `DATABASE_URL` stays the single switch between local and Neon for both the pipeline and dbt, and the passwords never get copied into a second set of variables.
+
+## 2026-10-17 — Seeds load into the staging schema (step 2.3)
+
+- **Changed:** `dbt seed` loads `stadiums` and `team_code_map` into `staging` (e.g. `staging.stadiums`), not a schema of their own.
+- **Why:** it keeps the database to the three documented schemas (`raw`, `staging`, `marts`). Seeds are cleaned reference data that staging and marts join to. A seed the website must read (e.g. 2.10's `situations.csv`) can set its own `+schema: marts`.

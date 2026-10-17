@@ -149,7 +149,7 @@ Play-by-play from 2016, trimmed to 60 of nflverse's 372 columns (chosen and just
 
 ## Seeds
 
-Hand-made reference CSVs in `transform/seeds/`, loaded by `dbt seed` from Phase 2.
+Hand-made reference CSVs in `transform/seeds/`, loaded by `dbt seed` (`uv run python -m pipeline dbt seed`) into the `staging` schema, e.g. `staging.stadiums`.
 
 | Seed                | Grain                | Key           | Purpose                                                         |
 | ------------------- | -------------------- | ------------- | --------------------------------------------------------------- |

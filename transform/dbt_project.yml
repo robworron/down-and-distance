@@ -25,3 +25,19 @@ models:
     marts:
       +schema: marts
       +materialized: table
+
+seeds:
+  down_and_distance:
+    # Hand-made reference CSVs, loaded by `dbt seed` into staging beside the
+    # staging views, so the database keeps its three schemas.
+    +schema: staging
+    stadiums:
+      +column_types:
+        stadium_id: text
+        latitude: double precision
+        longitude: double precision
+        altitude_m: integer
+    team_code_map:
+      +column_types:
+        old_code: text
+        current_code: text

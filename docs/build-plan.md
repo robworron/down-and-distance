@@ -213,7 +213,7 @@ Goal: one `team_games` table with a row per team per game, carrying every situat
 - [x] **2.2 Set up dbt.** Add `dbt-postgres` (stable 1.x), run `dbt init` in `transform/`, read credentials from environment variables.
   - Learn: models, `ref()`, sources, materializations (view vs table).
   - Done when: `dbt debug` passes.
-- [ ] **2.3 Seeds and sources.** Load the stadiums CSV with `dbt seed`; declare the raw tables in `sources.yml`.
+- [x] **2.3 Seeds and sources.** Load the stadiums CSV with `dbt seed`; declare the raw tables in `sources.yml`.
   - Done when: `dbt seed` loads the stadiums and `dbt ls` lists the sources.
 - [ ] **2.4 Staging models.** One `stg_` model per raw table: rename columns, fix types, standardise team codes, build `kickoff_utc`.
   - Learn: the staging layer; casting; `AT TIME ZONE`.
