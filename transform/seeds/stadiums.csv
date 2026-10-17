@@ -2,6 +2,7 @@ stadium_id,name,city,region,country,latitude,longitude,timezone,altitude_m,roof,
 ATL00,Georgia Dome,Atlanta,Georgia,US,33.7577,-84.4008,America/New_York,301,dome,fieldturf
 ATL97,Mercedes-Benz Stadium,Atlanta,Georgia,US,33.7554,-84.4008,America/New_York,307,retractable,fieldturf
 BAL00,M&T Bank Stadium,Baltimore,Maryland,US,39.278,-76.6227,America/New_York,5,outdoors,grass
+BER00,Olympiastadion,Berlin,Berlin,DE,52.5147,13.2395,Europe/Berlin,94,outdoors,grass
 BOS00,Gillette Stadium,Foxborough,Massachusetts,US,42.0909,-71.2643,America/New_York,89,outdoors,fieldturf
 BOS99,Foxboro Stadium,Foxborough,Massachusetts,US,42.0917,-71.2625,America/New_York,78,outdoors,grass
 BRG00,Tiger Stadium (LSU),Baton Rouge,Louisiana,US,30.412,-91.1838,America/Chicago,9,outdoors,grass
@@ -19,6 +20,7 @@ DEN00,Empower Field at Mile High,Denver,Colorado,US,39.7439,-105.0201,America/De
 DEN99,Mile High Stadium,Denver,Colorado,US,39.7461,-105.0217,America/Denver,1594,outdoors,grass
 DET00,Ford Field,Detroit,Michigan,US,42.34,-83.0456,America/Detroit,188,dome,fieldturf
 DET99,Pontiac Silverdome,Pontiac,Michigan,US,42.6456,-83.255,America/Detroit,261,dome,astroturf
+DUB00,Croke Park,Dublin,Leinster,IE,53.3607,-6.2512,Europe/Dublin,3,outdoors,grass
 FRA00,Deutsche Bank Park,Frankfurt am Main,Hesse,DE,50.0686,8.6455,Europe/Berlin,124,retractable,grass
 GER00,Allianz Arena,Munich,Bavaria,DE,48.2188,11.6247,Europe/Berlin,491,outdoors,grass
 GNB00,Lambeau Field,Green Bay,Wisconsin,US,44.5013,-88.0622,America/Chicago,190,outdoors,grass

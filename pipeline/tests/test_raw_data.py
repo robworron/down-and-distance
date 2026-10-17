@@ -10,6 +10,7 @@ import pandas as pd
 import pytest
 from timezonefinder import TimezoneFinder
 
+from pipeline.corrections import load_corrections
 from pipeline.seasons import current_season
 
 CHECKS = Path("pipeline/sql/checks")
@@ -87,6 +88,22 @@ def test_mislabelled_open_air_game_has_weather(query):
     )
     assert len(row) == 1 and row.iloc[0]["roof"] == "dome", "nflverse's label changed; revisit this test"
     assert pd.notna(row.iloc[0]["temperature_f"]), "the MCG game has no weather"
+
+
+def test_schedule_corrections_still_needed(query):
+    """Each correction must still match what nflverse publishes.
+
+    If nflverse fixes a value upstream (or changes it to something else), the
+    correction is stale: review it in transform/seeds/schedule_corrections.csv.
+    """
+    seed = load_corrections()
+    raw = query("SELECT game_id, gametime, stadium_id, coalesce(roof, '') AS roof FROM raw.schedules").set_index("game_id")
+    stale = [
+        (c.game_id, c.column_name, c.nflverse_value, raw.at[c.game_id, c.column_name] if c.game_id in raw.index else "missing")
+        for c in seed.itertuples()
+        if c.game_id not in raw.index or raw.at[c.game_id, c.column_name] != c.nflverse_value
+    ]
+    assert not stale, f"(game, column, expected, now in raw): {stale}"
 
 
 def test_snow_game_has_snow(query):

@@ -24,6 +24,7 @@ from pathlib import Path
 import pandas as pd
 import requests
 
+from pipeline.corrections import apply_schedule_corrections
 from pipeline.db import UpsertResult, get_engine, upsert_dataframe
 from pipeline.seasons import parse_seasons
 
@@ -74,6 +75,9 @@ def eligible_games(seasons: list[int]) -> pd.DataFrame:
         get_engine(),
         params={"seasons": [s for s in seasons if s >= FIRST_SEASON]},
     )
+    # Fix nflverse's known wrong kickoff times and venues (schedule_corrections.csv)
+    # before they decide which hours and which coordinates to fetch.
+    games = apply_schedule_corrections(games)
     stadiums = pd.read_csv(STADIUMS_CSV)
     games = games.merge(stadiums[["stadium_id", "latitude", "longitude", "roof"]], on="stadium_id")
     games = games[games["roof"] != "dome"].drop(columns="roof")

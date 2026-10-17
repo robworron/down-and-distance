@@ -3,6 +3,7 @@
 import pandas as pd
 import pytest
 
+from pipeline.corrections import apply_schedule_corrections, load_corrections
 from pipeline.load_pbp import INTEGER_COLUMNS, PBP_COLUMNS, compact
 from pipeline.load_weather import game_weather, kickoff_hour, kickoff_utc
 from pipeline.run_dbt import dbt_env
@@ -101,3 +102,25 @@ def test_dbt_env_splits_the_url():
 def test_dbt_env_defaults():
     env = dbt_env("postgresql://u:pw@localhost:15432/dnd")
     assert (env["DBT_PORT"], env["DBT_SSLMODE"]) == ("15432", "prefer")
+
+
+def test_schedule_corrections_swap_in_values():
+    games = pd.DataFrame({"game_id": ["a", "b"], "gametime": ["09:00", "13:00"], "stadium_id": ["PIT00", "BUF00"]})
+    fixes = pd.DataFrame(
+        {
+            "game_id": ["a", "a", "b"],
+            "column_name": ["gametime", "stadium_id", "roof"],  # roof isn't in games: ignored
+            "nflverse_value": ["09:00", "PIT00", "dome"],
+            "corrected_value": ["21:00", "DUB00", ""],
+            "note": ["", "", ""],
+        }
+    )
+    fixed = apply_schedule_corrections(games, fixes)
+    assert fixed.to_dict("list") == {"game_id": ["a", "b"], "gametime": ["21:00", "13:00"], "stadium_id": ["DUB00", "BUF00"]}
+    assert games.loc[0, "gametime"] == "09:00", "the input must not be changed"
+
+
+def test_schedule_corrections_seed_is_well_formed():
+    seed = load_corrections()
+    assert not seed.duplicated(["game_id", "column_name"]).any()
+    assert set(seed["column_name"]) <= {"gametime", "stadium_id", "roof"}

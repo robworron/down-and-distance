@@ -1,7 +1,8 @@
 """Validate transform/seeds/stadiums.csv against the schedules and the map.
 
 Checks, for every stadium:
-  - its stadium_id is used by raw.schedules, and every schedules stadium_id is in the CSV;
+  - its stadium_id is used by raw.schedules (or by a stadium_id correction in
+    schedule_corrections.csv), and every schedules stadium_id is in the CSV;
   - its IANA time zone matches the zone timezonefinder derives from its coordinates;
   - it lies within 30 km of its municipality, geocoded by Open-Meteo.
 
@@ -23,6 +24,7 @@ import requests
 from sqlalchemy import text
 from timezonefinder import TimezoneFinder
 
+from pipeline.corrections import load_corrections
 from pipeline.db import get_engine
 
 CSV_PATH = Path("transform/seeds/stadiums.csv")
@@ -92,9 +94,12 @@ def main() -> None:
 
     with get_engine().connect() as conn:
         used = set(conn.execute(text("SELECT DISTINCT stadium_id FROM raw.schedules")).scalars())
+    # Venues only reached through a correction (e.g. Croke Park) count as used.
+    corrections = load_corrections()
+    used |= set(corrections.loc[corrections["column_name"] == "stadium_id", "corrected_value"])
     listed = set(stadiums["stadium_id"])
     problems += [f"{s}: in raw.schedules but missing from the CSV" for s in sorted(used - listed)]
-    problems += [f"{s}: in the CSV but not used by raw.schedules" for s in sorted(listed - used)]
+    problems += [f"{s}: in the CSV but not used by raw.schedules or a correction" for s in sorted(listed - used)]
     if stadiums["stadium_id"].duplicated().any():
         problems.append("duplicate stadium_id in the CSV")
 

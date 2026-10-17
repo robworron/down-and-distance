@@ -12,11 +12,11 @@
 
 WITH open_air_stadiums (stadium_id) AS (
     -- stadiums.csv isn't in the database until dbt seeds it (Phase 2), so its
-    -- 47 roofless stadiums are typed in here. A pytest check
+    -- 49 roofless stadiums are typed in here. A pytest check
     -- (test_open_air_list_matches_seed) fails if this list drifts from the CSV.
     VALUES
-        ('BAL00'), ('BOS00'), ('BOS99'), ('BRG00'), ('BUF00'), ('CAR00'), ('CHI98'), ('CHI99'),
-        ('CIN00'), ('CIN99'), ('CLE00'), ('DAL99'), ('DEN00'), ('DEN99'), ('GER00'), ('GNB00'),
+        ('BAL00'), ('BER00'), ('BOS00'), ('BOS99'), ('BRG00'), ('BUF00'), ('CAR00'), ('CHI98'), ('CHI99'),
+        ('CIN00'), ('CIN99'), ('CLE00'), ('DAL99'), ('DEN00'), ('DEN99'), ('DUB00'), ('GER00'), ('GNB00'),
         ('JAX00'), ('KAN00'), ('LAX97'), ('LAX99'), ('LON00'), ('LON01'), ('LON02'), ('MEL00'),
         ('MEX00'), ('MIA00'), ('MIN98'), ('MUN01'), ('NAS00'), ('NYC00'), ('NYC01'), ('OAK00'),
         ('PAR00'), ('PHI00'), ('PHI99'), ('PHO99'), ('PIT00'), ('PIT99'), ('RIO00'), ('SAO00'),

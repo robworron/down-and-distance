@@ -49,6 +49,8 @@ Loaded on 2026-10-17 (step 1.10) with `ingest --full`, `DATABASE_URL` set to the
 | `raw.schedules` | 7,548 | 3.6 MB |
 | `raw.teams` | 36 | 72 kB |
 | `raw.game_weather` | 5,945 | 1.3 MB |
+
+Neon's `raw.game_weather` predates the schedule corrections (step 2.4): reload `--only weather --seasons 2000-2005,2017,2018,2025` against Neon before step 2.13 (local now has 5,946 rows).
 | `raw.pbp` | 498,285 | 182 MB |
 | Whole database | | 195 MB of the 1 GB free plan |
 
@@ -100,7 +102,7 @@ Open-Meteo's hourly precipitation and snowfall are totals for the *preceding* ho
 
 **Phase 2 buckets (temperature, precipitation, wind) should use the game-window values**, which describe the conditions the game was played in. The kickoff-hour values are kept for comparison with nflverse's `temp` and `wind`.
 
-**Closed-roof games have weather rows, but Phase 2 must treat them as having no weather.** The loader skips only fixed domes (by `stadiums.csv`), so retractable-roof stadiums get the outside weather for every game, whatever the roof did. As of 2026-10-17 the 5,945 rows break down by schedules' per-game `roof`:
+**Closed-roof games have weather rows, but Phase 2 must treat them as having no weather.** The loader skips only fixed domes (by `stadiums.csv`), so retractable-roof stadiums get the outside weather for every game, whatever the roof did. As of 2026-10-17 (before step 2.4's corrections) the 5,945 rows broke down by schedules' per-game `roof`:
 
 | Per-game `roof` | Rows | Weather applies? |
 | --------------- | ---- | ---------------- |
@@ -118,7 +120,9 @@ The 99% coverage check (`weather_coverage.sql`) uses this same rule. It counts 5
 
 **Amounts are model estimates, not gauge readings.** Open-Meteo's archive comes from reanalysis weather models that describe the atmosphere on a coarse grid (cells roughly 10–30 km across, depending on the model it blends). A grid cell averages out local squalls and narrow lake-effect snow bands. The 2017 Colts–Bills snow game shows only 0.99 in of snow over the game window, far below the lake-effect snow that buried the field. Temperature and wind, which vary smoothly, agree well with nflverse's reported values; precipitation and snow amounts are the least reliable. **Phase 2 should bucket precipitation and snowfall as none / light / heavy** (thresholds set in step 2.5) rather than trusting exact amounts. Open-Meteo's `precipitation` includes melted snow, so in a snow game both totals are non-zero: call it snow when `snowfall_total_in` > 0, otherwise rain when `precipitation_total_in` > 0.
 
-Checks at load (step 1.6, 2026-10-16, local): 100% of finished outdoor and open-roof games from 2000 have weather (5,309 of 5,309; `pipeline/sql/checks/weather_coverage.sql`). Against nflverse's `temp` over 5,054 games: correlation 0.978, mean gap −0.3 °F, median absolute gap 1.9 °F (`weather_vs_nflverse_temp.sql`). The 2017 Colts–Bills snow game shows 0.25 in of snow in the kickoff hour and 0.99 in over the game window.
+**Corrected kickoffs and venues (step 2.4).** The loader applies `transform/seeds/schedule_corrections.csv` before choosing hours and coordinates: 107 kickoff times nflverse lists wrongly (2000–05 night games at `09:00` instead of 21:00, five 2017–18 London games at `21:30` instead of 09:30) and 8 international games filed under the home team's US stadium (2025's seven, plus `2026_05_PHI_JAX`). The reload updated 93 rows and added the São Paulo game (previously skipped as SoFi's dome). On the 87 re-timed open-air games, agreement with nflverse's `temp` rose from r = 0.854 (mean gap −6.6 °F) to 0.973 (−2.1 °F).
+
+Checks at load (step 1.6, 2026-10-16, local): 100% of finished outdoor and open-roof games from 2000 have weather (5,309 of 5,309; `pipeline/sql/checks/weather_coverage.sql`). Against nflverse's `temp` over 5,054 games: correlation 0.978, mean gap −0.3 °F, median absolute gap 1.9 °F (`weather_vs_nflverse_temp.sql`); 0.981 after step 2.4's corrections. The 2017 Colts–Bills snow game shows 0.25 in of snow in the kickoff hour and 0.99 in over the game window.
 
 #### raw.pbp
 
@@ -155,10 +159,11 @@ Hand-made reference CSVs in `transform/seeds/`, loaded by `dbt seed` (`uv run py
 | ------------------- | -------------------- | ------------- | --------------------------------------------------------------- |
 | `stadiums.csv`      | stadium              | `stadium_id`  | Coordinates, IANA time zone, altitude, roof and surface (1.5)   |
 | `team_code_map.csv` | old team code        | `old_code`    | Maps relocated teams' codes to today's code, e.g. OAK→LV (1.4)  |
+| `schedule_corrections.csv` | game × column | `(game_id, column_name)` | Fixes for values nflverse publishes wrongly: kickoff times, venues, roofs (2.4) |
 
 ### stadiums.csv
 
-One row per `stadium_id` used in `raw.schedules` (67 as of 2026). Columns:
+One row per `stadium_id` used in `raw.schedules` (67 as of 2026), plus venues reached only through `schedule_corrections.csv` (Croke Park `DUB00`, Berlin's Olympiastadion `BER00`): 69. Columns:
 
 | Column | Meaning |
 | ------ | ------- |
