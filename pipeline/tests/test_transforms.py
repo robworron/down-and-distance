@@ -5,6 +5,7 @@ import pytest
 
 from pipeline.load_pbp import INTEGER_COLUMNS, PBP_COLUMNS, compact
 from pipeline.load_weather import game_weather, kickoff_hour, kickoff_utc
+from pipeline.run_dbt import dbt_env
 from pipeline.seasons import parse_seasons
 
 
@@ -83,3 +84,20 @@ def test_compact_stores_whole_numbers_as_integers():
 def test_compact_refuses_values_that_would_change(bad):
     with pytest.raises(ValueError, match=list(bad)[0]):
         compact(pbp_frame(**bad))
+
+
+def test_dbt_env_splits_the_url():
+    env = dbt_env("postgresql://owner:p%40ss%2Fw0rd@ep-x.neon.tech/neondb?sslmode=require&channel_binding=require")
+    assert env == {
+        "DBT_HOST": "ep-x.neon.tech",
+        "DBT_PORT": "5432",
+        "DBT_USER": "owner",
+        "DBT_PASSWORD": "p@ss/w0rd",
+        "DBT_DBNAME": "neondb",
+        "DBT_SSLMODE": "require",
+    }
+
+
+def test_dbt_env_defaults():
+    env = dbt_env("postgresql://u:pw@localhost:15432/dnd")
+    assert (env["DBT_PORT"], env["DBT_SSLMODE"]) == ("15432", "prefer")

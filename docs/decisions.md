@@ -101,3 +101,8 @@ Where the project deviates from `docs/build-plan.md`, and why. Newest last. Wher
 
 - **Changed:** the "You try first" label is gone from `docs/build-plan.md` (2.1, 2.6, 2.9, 2.11, 3.3, 3.4, 6.10) and from `CLAUDE.md`. Claude Code writes all code, including SQL, statistics and analysis, and walks Rob through each SQL- or analysis-heavy step clause by clause afterwards. Judgment calls the plan doesn't settle (bucket definitions, data corrections, scope changes) are a hand-back: options with counts and a recommendation. `pipeline/sql/checks` are now simply "SQL checks".
 - **Why:** Rob would rather keep the build moving and be able to explain finished, working code in interviews. This completes the 2026-10-16 change.
+
+## 2026-10-17 — dbt runs through a wrapper; exact schema names (step 2.2)
+
+- **Changed:** dbt-core 1.12 and dbt-postgres 1.11 (both pinned below 2.0, which is still a release candidate). `dbt_project.yml` was written by hand instead of `dbt init`, which would have nested a second project folder inside `transform/`. `transform/profiles.yml` is committed with no secrets: it reads `DBT_HOST`, `DBT_PORT`, `DBT_USER`, `DBT_PASSWORD`, `DBT_DBNAME` and `DBT_SSLMODE`, which `uv run python -m pipeline dbt …` (`pipeline/run_dbt.py`) fills in from `DATABASE_URL`. A `generate_schema_name` macro makes models land in exactly `staging` and `marts`, not dbt's default `staging_marts`-style names. Anonymous usage stats are off.
+- **Why:** `DATABASE_URL` stays the single switch between local and Neon for both the pipeline and dbt, and the passwords never get copied into a second set of variables.

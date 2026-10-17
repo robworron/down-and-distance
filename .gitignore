@@ -30,3 +30,6 @@ out/
 .DS_Store
 Thumbs.db
 .vscode/
+
+# dbt writes an anonymous user id next to profiles.yml
+transform/.user.yml

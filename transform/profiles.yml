@@ -1,0 +1,16 @@
+# Connection settings. No secrets here: every value comes from an environment
+# variable that `uv run python -m pipeline dbt ...` sets from DATABASE_URL, so
+# DATABASE_URL stays the one switch between local Postgres and Neon.
+down_and_distance:
+  target: default
+  outputs:
+    default:
+      type: postgres
+      host: "{{ env_var('DBT_HOST') }}"
+      port: "{{ env_var('DBT_PORT') | as_number }}"
+      user: "{{ env_var('DBT_USER') }}"
+      password: "{{ env_var('DBT_PASSWORD') }}"
+      dbname: "{{ env_var('DBT_DBNAME') }}"
+      sslmode: "{{ env_var('DBT_SSLMODE') }}"
+      schema: staging  # used only by anything without its own +schema
+      threads: 4

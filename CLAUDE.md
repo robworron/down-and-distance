@@ -52,6 +52,7 @@ Run from the repo root unless noted. Anything local needs Docker Desktop running
   - `--only schedules,teams,weather,pbp`: a subset, still loaded in that order.
   
   Loads are idempotent upserts, so reruns are safe. For production, set `DATABASE_URL` to `NEON_DATABASE_URL` for that one command, without echoing it.
+- **dbt:** `uv run python -m pipeline dbt <command>` (e.g. `build`, `seed`, `debug`, `ls`) runs dbt in `transform/` against `DATABASE_URL`: `pipeline/run_dbt.py` splits the URL into the `DBT_*` variables `transform/profiles.yml` reads. Don't run `dbt` directly. For production, set `DATABASE_URL` to Neon for that one command, as with ingest.
 - **Weather cache:** `pipeline/.cache/open-meteo/` (gitignored). Without it, a `--full` run refetches about 6,000 games (around 90 minutes, paced to Open-Meteo's free tier).
 - **Tests:** `uv run pytest` runs everything. Against Neon, run only the data checks: `uv run pytest pipeline/tests/test_raw_data.py`.
 - **`local_only` marker:** `test_upsert.py` creates and drops throwaway schemas. It is marked `local_only` and skips itself unless `DATABASE_URL` is the local database (`is_local_database()` in `pipeline/db.py`). Give any new test that writes to the database the same marker and skip.

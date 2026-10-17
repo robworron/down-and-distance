@@ -210,7 +210,7 @@ Goal: one `team_games` table with a row per team per game, carrying every situat
 - [x] **2.1 Feel the problem first.** By hand, write a query for each team's 2025 home and away average margin from `raw.schedules`.
   - Learn: why each game must become two rows, one per team (long format), using `UNION ALL`.
   - Done when: 64 rows come back (32 teams × home and away).
-- [ ] **2.2 Set up dbt.** Add `dbt-postgres` (stable 1.x), run `dbt init` in `transform/`, read credentials from environment variables.
+- [x] **2.2 Set up dbt.** Add `dbt-postgres` (stable 1.x), run `dbt init` in `transform/`, read credentials from environment variables.
   - Learn: models, `ref()`, sources, materializations (view vs table).
   - Done when: `dbt debug` passes.
 - [ ] **2.3 Seeds and sources.** Load the stadiums CSV with `dbt seed`; declare the raw tables in `sources.yml`.

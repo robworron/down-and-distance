@@ -1,0 +1,27 @@
+# dbt project for Down & Distance. Run it through the pipeline wrapper, which
+# turns DATABASE_URL into the DBT_* variables profiles.yml reads:
+#   uv run python -m pipeline dbt build
+name: down_and_distance
+version: "1.0.0"
+profile: down_and_distance
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+clean-targets: ["target", "logs"]
+
+flags:
+  send_anonymous_usage_stats: false
+
+models:
+  down_and_distance:
+    # Staging: one cleaned view per raw table. Views store nothing and always
+    # show the current raw data.
+    staging:
+      +schema: staging
+      +materialized: view
+    # Marts: tables the website reads. Built once per run, fast to query.
+    marts:
+      +schema: marts
+      +materialized: table

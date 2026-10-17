@@ -4,6 +4,7 @@
     uv run python -m pipeline ingest --full             # everything, from each table's first season
     uv run python -m pipeline ingest --seasons 2020-2022
     uv run python -m pipeline ingest --only schedules,weather
+    uv run python -m pipeline dbt build                 # any dbt command, against DATABASE_URL
 
 Tables load in dependency order: schedules first (weather reads it), then
 teams, weather and play-by-play. Every load is an idempotent upsert, so a
@@ -12,6 +13,7 @@ failed run is safe to rerun.
 
 import argparse
 import logging
+import sys
 import time
 
 from pipeline import load_pbp, load_schedule, load_teams, load_weather
@@ -44,9 +46,16 @@ def ingest(seasons: list[int] | None, only: list[str]) -> None:
 
 
 def main() -> None:
+    # `dbt` passes everything after it straight to dbt, flags included.
+    if sys.argv[1:2] == ["dbt"]:
+        from pipeline.run_dbt import run
+
+        sys.exit(run(sys.argv[2:]))
+
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     parser = argparse.ArgumentParser(prog="python -m pipeline", description="Down & Distance data pipeline.")
     commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("dbt", help="run a dbt command against DATABASE_URL, e.g. dbt build")
 
     ingest_cmd = commands.add_parser("ingest", help="load the raw tables")
     which = ingest_cmd.add_mutually_exclusive_group()
