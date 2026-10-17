@@ -216,3 +216,31 @@ Where the project deviates from `docs/build-plan.md`, and why. Newest last. Wher
 - **Weather reload first (Rob approved):** Neon's `raw.game_weather` was reloaded from the cache for 2000–2005, 2016–2018 and 2025 before the build, as the 2.4 and 2.7 entries required: 1 inserted, 97 updated, 0 deleted. Without it, `stg_kickoff_matches_weather` would have failed on 91 games, and 7 international 2025 games would have carried the wrong stadium's weather. This closes the Neon notes in those two entries.
 - **Build:** `dbt build` against Neon passed 290/290; the marts match local row for row. Neon now holds 212 MB of its 1 GB (marts 17 MB).
 - **No new grants:** `web_reader` still reads only `raw`. Granting `marts` and revoking `raw` stays in step 4.1, when the site starts reading the marts.
+
+## 2026-10-17 — Phase 3 analysis rules, set before any effect is estimated (step 3.1)
+
+Logged and pushed in step 3.1, before step 3.3 runs any estimate, so the evidence can't be read to fit a conclusion afterwards. Any change before 3.3 runs gets its own dated entry; any change after is reported in `docs/findings.md` as a change made after seeing the results.
+
+- **Games (Rob's choice):** finished regular-season games, 1999–2025: 6,967 games. EPA uses 2016–2025 (2,639 games). 2026 (in progress) and the 309 playoff games are left out. 2020 is left out of venue comparisons only. Everything is rerun on 2016–2025 as a robustness check; that rerun is descriptive and doesn't change a verdict.
+- **The independent unit is the game.** `team_games` has two mirrored rows per game, so no standard error treats them as two observations. Ratio statistics (EPA/play) get bootstrap CIs that resample whole games (2,000 resamples); other CIs are the estimate ± 1.96 standard errors.
+- **Team-level situations (Rob's choice): head-to-head.** Venue, rest, time-zone travel, body clock and spread role are measured on games where exactly one team has the value, one row per game: the side with the value. Its win score (win 1, tie ½, loss 0) and margin are compared with the same season's mean for the same venue (home, away or neutral), so the road-team disadvantage and the shrinking home edge don't masquerade as travel or rest effects. Venue itself is measured raw (home win % against .500, home margin against 0), without 2020.
+- **Shared values go to game level (Rob's choice).** Short rest (9 head-to-head games; 300 where both teams were short) and long haul (1; 49 where both were) are measured as game-level situations, on the games where both teams share them. Claude's extension, same reason: pick'em (0 head-to-head; both teams in all 1,424) is measured the same way. Neutral venue (both teams neutral in all 66 games) is reported with its n only.
+- **Game-level situations:** roof, surface, temperature, precipitation, wind, time slot, primetime and opponent type, one row per game. Total points are **season-adjusted** (the game's total minus that season's mean game total), so rising scoring and the move to domes aren't confused. Over % leaves pushes out and is compared with the league's over % over the same games. Weather enters only as its buckets.
+- **Primary metrics** (they decide the verdicts):
+  - Team-level: venue-adjusted win % and venue-adjusted margin.
+  - Game-level (short rest, long haul and pick'em games included): season-adjusted total points and over %.
+- **Secondary metrics** (descriptive, no effect on verdicts):
+  - EPA/play: net (offense minus defense) for team-level values, both offenses combined for game-level values. 2016–2025.
+  - Cover %.
+  - For team-level values, **margin vs spread** (Rob's revision): the mean of `margin + team_spread`, the points beyond the market's expectation, which controls for team strength (the morning body-clock bucket is mostly West Coast teams, for example). The spread already prices venue, so it isn't venue-adjusted again. `docs/findings.md` says, for each team-level effect, whether it survives this adjustment.
+- **Tests and correction (Rob's choice):** each primary metric of each value gets a two-sided test against its baseline. Benjamini–Hochberg at q = 0.05 corrects over the whole family of primary tests in step 3.3. Exact mirror pairs count once, since they are the same games seen from the other side: home/away, favourite/underdog and big favourite/big underdog.
+- **Practical size:**
+  - Team-level: 1 point of margin, or 3 percentage points of win %.
+  - Game-level: 2 points of total, or 5 percentage points of over %.
+- **Verdicts (Rob's choice), per registry row** (13: the 12 v1 situations, with primetime as its own row):
+  - **Feature:** at least one value has a primary metric that is significant after the correction and at least the practical size.
+  - **Trim:** every value's 95% CI on both primary metrics lies inside ± the practical size, so a real effect of that size has been ruled out.
+  - **Keep as a filter, not featured:** anything else (inconclusive).
+  - **Venue and spread role always stay**, as the context every other split is read against.
+- **Dependencies:** `matplotlib` (charts) and `statsmodels` (regression, the Benjamini–Hochberg correction; it brings `scipy`) are added to the dev group beside `jupyter`, because only the notebooks use them.
+- **Why:** the plan's 3.3 asks for effects "against the league baseline". In team-level situations, both teams often share the value, and travel and body clock are tied to being the away team. So the plain league split would show short rest and pick'em at 50% by construction and charge the road disadvantage to travel.

@@ -60,6 +60,7 @@ Run from the repo root unless noted. Anything local needs Docker Desktop running
 - **dbt docs:** `uv run python -m pipeline dbt docs generate`, then the `dbt-docs` preview in `.claude/launch.json` (http://localhost:8080; a threaded static server, because `dbt docs serve` hangs in the browser pane). Describe every new model and column in the YAML; shared columns use docs blocks in `transform/models/_docs.md`.
 - **Stadium seed:** `uv run python -m pipeline.validate_stadiums` checks `transform/seeds/stadiums.csv`. Add `--fill-altitude` after adding a stadium.
 - **Local website:** `web/.env.local` holds one line, `DATABASE_URL=`, with the same local URL as `.env` (Next.js reads env files only from `web/`). It is gitignored, so create it on a fresh clone. In `web/`: `npm ci`, then `npm run dev` (or the `web` preview in `.claude/launch.json`), `npm run build` and `npm run lint`.
+- **Notebooks:** `notebooks/`, read from the local marts through `pipeline/analysis.py` (`read_mart`, `regular_season`, `save_figure` to `docs/figures/`). Phase 3 follows the analysis rules in `docs/decisions.md`. Run one headless, as each step's Done-when check: `uv run jupyter nbconvert --to notebook --execute --inplace notebooks/<name>.ipynb`; its final `assert` cells are the check. Commit notebooks with their outputs.
 - **Reference:** `docs/data-model.md` describes every table, its checks and the Phase 2 weather rules.
 
 ## Project layout
