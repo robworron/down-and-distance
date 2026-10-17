@@ -218,7 +218,7 @@ Goal: one `team_games` table with a row per team per game, carrying every situat
 - [x] **2.4 Staging models.** One `stg_` model per raw table: rename columns, fix types, standardise team codes, build `kickoff_utc`.
   - Learn: the staging layer; casting; `AT TIME ZONE`.
   - Done when: `dbt build` passes `unique` and `not_null` tests on every key.
-- [ ] **2.5 The games model.** One row per game joining schedules, stadiums and weather, with game-level situations: roof, surface, temperature, precipitation and wind buckets, time slot, primetime, opponent type, neutral site.
+- [x] **2.5 The games model.** One row per game joining schedules, stadiums and weather, with game-level situations: roof, surface, temperature, precipitation and wind buckets, time slot, primetime, opponent type, neutral site.
   - Learn: `CASE WHEN` bucketing; `accepted_values` tests.
   - Done when: the row count equals schedules and every bucket column passes its test.
 - [ ] **2.6 The team_games model.** Two rows per game: is_home, points for and against, result, rest days, rest difference, and the spread from that team's side.

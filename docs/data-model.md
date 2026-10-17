@@ -5,8 +5,8 @@ How the database is laid out, table by table. Three schemas, one per layer:
 | Schema    | Built by         | Holds                                              |
 | --------- | ---------------- | -------------------------------------------------- |
 | `raw`     | Python pipeline  | Copies of the sources, as-is                       |
-| `staging` | dbt (Phase 2)    | One cleaned model per raw table                    |
-| `marts`   | dbt (Phase 2)    | The tables the website reads                       |
+| `staging` | dbt              | One cleaned model per raw table                    |
+| `marts`   | dbt              | The tables the website reads                       |
 
 ## Raw layer
 
@@ -169,6 +169,33 @@ The macro `current_team(column)` maps a team code through `team_code_map`. 879 g
 - `stg_kickoff_matches_weather`: staging's `kickoff_utc` equals the weather loader's for every game with weather.
 - `stg_no_early_kickoff_unless_neutral`: no non-neutral game kicks off before 09:30 ET (catches clock slips).
 - `neutral_site_not_at_team_home`: no neutral-site game (Super Bowls exempt) is at the regular home stadium of either team playing (catches international games filed under a US stadium). On the uncorrected data it returns the 8 known games.
+
+## Marts layer
+
+Built by dbt from `transform/models/marts/` as tables (fast for the site to read, rebuilt on each run).
+
+### games
+
+One row per game since 1999 (7,548 as of 2026-10-17), key `game_id`. Joins `stg_schedules` to `stadiums` and `stg_game_weather`, and buckets every game-level situation. Rules are in `docs/decisions.md` (2026-10-17, step 2.5).
+
+| Column | Values (local counts, 2026-10-17) | Rule |
+| ------ | ------ | ---- |
+| `roof_type` | outdoors 5,513 · dome 1,236 · retractable_closed 635 · retractable_open 132 · NULL 32 | Stadium's physical roof; for retractable roofs, the game's own `open`/`outdoors` vs `closed`/`dome`. NULL = unknown (31 upcoming games, Madrid 2025) |
+| `surface_type` | grass 4,375 · turf 3,173 | Game's surface, else the stadium's; `grass` and `dessograss` are grass |
+| `is_open_air` | true 5,645 · false 1,903 | Game roof `outdoors`/`open`, or a roofless stadium. Weather columns are NULL when false |
+| `temperature_f`, `wind_mph` | | Game-window mean temperature and max wind, rounded to whole numbers |
+| `precipitation_in`, `snowfall_in` | | Game-window totals |
+| `temperature_bucket` | 51_to_79 2,979 · 33_to_50 1,359 · 80_or_above 550 · 32_or_below 423 · NULL 2,237 | ≤32 / 33–50 / 51–79 / ≥80 °F |
+| `wind_bucket` | under_10 3,305 · 10_to_14 1,473 · 15_plus 533 · NULL 2,237 | <10 / 10–14 / ≥15 mph |
+| `precipitation_bucket` | none 4,432 · light_rain 532 · heavy_rain 201 · snow 146 · NULL 2,237 | snow if snowfall > 0; else heavy_rain ≥ 0.10 in, light_rain ≥ 0.01 in, else none |
+| `time_slot` | sunday_early 3,808 · sunday_late 1,884 · mnf 472 · snf 457 · tnf 287 · saturday 252 · other 129 · NULL 259 | Eastern kickoff: Thu ≥19:00 tnf; Sun 12:00–15:59 early, 16:00–18:59 late, ≥19:00 snf; Mon ≥19:00 mnf; any Saturday; else other. NULL for 1999 |
+| `is_primetime` | true 1,328 · false 5,961 · NULL 259 | Kickoff at 19:00 ET or later |
+| `opponent_type` | divisional 2,831 · conference 2,814 · non_conference 1,903 | `div_game`; else same conference (Seattle AFC before 2002) |
+| `is_neutral_site` | | `location = 'Neutral'` |
+
+Weather buckets are NULL for closed-roof games, 1999, upcoming games and the last ~8 days of games (Open-Meteo's archive lag).
+
+**Tests:** `unique`/`not_null` on `game_id`; `accepted_values` on every bucket; `not_null` on `surface_type`, `opponent_type`, `is_open_air`, `is_neutral_site`. Singular: row count equals `stg_schedules`; non-open-air games have no weather; open-air games with a weather row have all three weather buckets; the Melbourne game is open air with weather; every finished game has a roof type (except Madrid 2025); `div_game` matches today's divisions from 2002; nflverse's `weekday` matches `gameday`.
 
 ## Seeds
 

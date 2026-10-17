@@ -1,0 +1,53 @@
+version: 2
+
+models:
+  - name: games
+    description: One row per game since 1999 with every game-level situation bucketed. Weather is NULL unless the game was played in the open.
+    columns:
+      - name: game_id
+        data_tests: [unique, not_null]
+      - name: home_team
+        data_tests: [not_null]
+      - name: away_team
+        data_tests: [not_null]
+      - name: is_open_air
+        data_tests: [not_null]
+      - name: is_neutral_site
+        data_tests: [not_null]
+      - name: roof_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [outdoors, dome, retractable_open, retractable_closed]
+      - name: surface_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [grass, turf]
+      - name: temperature_bucket
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [32_or_below, 33_to_50, 51_to_79, 80_or_above]
+      - name: wind_bucket
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [under_10, 10_to_14, 15_plus]
+      - name: precipitation_bucket
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [none, light_rain, heavy_rain, snow]
+      - name: time_slot
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [tnf, sunday_early, sunday_late, snf, mnf, saturday, other]
+      - name: opponent_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [divisional, conference, non_conference]
