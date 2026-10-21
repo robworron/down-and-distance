@@ -1,0 +1,32 @@
+version: 2
+
+# The raw layer, loaded by the Python pipeline (`uv run python -m pipeline ingest`).
+# Models read these with source('raw', '<table>') rather than naming raw.* directly,
+# so dbt knows where each model's data comes from.
+sources:
+  - name: raw
+    schema: raw
+    description: Copies of nflverse and Open-Meteo data, as published. See docs/data-model.md.
+    tables:
+      - name: schedules
+        description: One row per game since 1999, regular season and playoffs, including upcoming games.
+        columns:
+          - name: game_id
+            description: Primary key, e.g. 2017_14_IND_BUF (season, week, away team, home team).
+      - name: teams
+        description: One row per nflverse team code, including old codes of relocated teams (OAK, SD, STL) and LAR.
+        columns:
+          - name: team_abbr
+            description: Primary key.
+      - name: game_weather
+        description: Open-Meteo weather at the kickoff hour and over the 3-hour game window, per finished game from 2000 outside fixed domes.
+        columns:
+          - name: game_id
+            description: Primary key; matches raw.schedules.
+      - name: pbp
+        description: Play-by-play from 2016, trimmed to 60 columns.
+        columns:
+          - name: game_id
+            description: Key, with play_id.
+          - name: play_id
+            description: Unique only within a game.

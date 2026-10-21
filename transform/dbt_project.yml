@@ -1,0 +1,74 @@
+# dbt project for Down & Distance. Run it through the pipeline wrapper, which
+# turns DATABASE_URL into the DBT_* variables profiles.yml reads:
+#   uv run python -m pipeline dbt build
+name: down_and_distance
+version: "1.0.0"
+profile: down_and_distance
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+clean-targets: ["target", "logs"]
+
+flags:
+  send_anonymous_usage_stats: false
+
+models:
+  down_and_distance:
+    # Write the YAML descriptions into Postgres as COMMENTs on each table,
+    # view and column (step 0.32), so DBeaver and psql's \d+ show them too.
+    +persist_docs:
+      relation: true
+      columns: true
+    # Staging: one cleaned view per raw table. Views store nothing and always
+    # show the current raw data.
+    staging:
+      +schema: staging
+      +materialized: view
+    # Marts: tables the website reads. Built once per run, fast to query.
+    marts:
+      +schema: marts
+      +materialized: table
+
+seeds:
+  down_and_distance:
+    # Hand-made reference CSVs, loaded by `dbt seed` into staging beside the
+    # staging views, so the database keeps its three schemas.
+    +schema: staging
+    +persist_docs:
+      relation: true
+      columns: true
+    stadiums:
+      +column_types:
+        stadium_id: text
+        latitude: double precision
+        longitude: double precision
+        altitude_m: integer
+    team_code_map:
+      +column_types:
+        old_code: text
+        current_code: text
+    situations:
+      # The situation registry (step 0.30). The website builds its filters
+      # from it, so it lives in marts beside the tables the site reads.
+      +schema: marts
+      # Adding a column needs a rebuild, not a plain `dbt seed` (which
+      # truncates and re-inserts into the existing table):
+      #   uv run python -m pipeline dbt build --full-refresh --select situations
+      +column_types:
+        in_v1: boolean
+        tier: text
+        sort_order: integer
+        value_labels: text
+        shared_values: text
+        shrinkage_k: integer
+    schedule_corrections:
+      # All text: "21:00" must stay a string, and a blank corrected_value loads
+      # as NULL (meaning "unknown").
+      +column_types:
+        game_id: text
+        column_name: text
+        nflverse_value: text
+        corrected_value: text
+        note: text

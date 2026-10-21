@@ -1,0 +1,129 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* Dark mode follows a .dark class on <html>, which next-themes sets from the
+   viewer's choice or, by default, the system setting. */
+@custom-variant dark (&:is(.dark *));
+
+/* Design tokens (step 0.41). Each colour is a role, defined once for light and
+   once for dark below; components and charts use the role, never a hex.
+   Contrast was measured on the worst surface each sits on:
+   text >= 4.5:1, chart marks and control outlines >= 3:1.
+   The shadcn/ui names (background, card, muted, ...) are kept so its
+   components pick up the palette; the extras after them are this site's. */
+:root {
+  --radius: 0.625rem;
+
+  --background: #f6f5f1; /* page */
+  --foreground: #111110; /* primary text, 16.4:1 */
+  --card: #fcfcfb; /* surface for blocks and tables */
+  --card-foreground: #111110;
+  --popover: #fcfcfb;
+  --popover-foreground: #111110;
+  --primary: #1c5cab; /* buttons and links; white text on it is 6.6:1 */
+  --primary-foreground: #ffffff;
+  --secondary: #f0efea; /* second surface: context blocks, league columns */
+  --secondary-foreground: #111110;
+  --muted: #f0efea;
+  --muted-foreground: #6b6a65; /* quiet text: n, CIs, notes, 4.7:1 */
+  --accent: #f0efea; /* hover wash in shadcn components */
+  --accent-foreground: #111110;
+  --destructive: #b42318;
+  --border: #e1e0d9; /* hairline rules */
+  --input: #8a8980; /* control outlines, 3:1 */
+  --ring: #2a78d6;
+
+  --ink-2: #4a4945; /* secondary text, 7.8:1 */
+  --rule-strong: #c3c2b7; /* table header rules, axis baseline */
+  --highlight: #2a78d6; /* featured accent rule */
+  --highlight-ink: #1c5cab; /* accent text and reference lines, 5.8:1 */
+  --highlight-wash: #e6effb; /* featured label background */
+  --bar: #2a78d6; /* chart bars, 3.8:1 */
+  --whisker: #4a4945; /* CI whiskers */
+}
+
+.dark {
+  --background: #0f0f0e;
+  --foreground: #f0efec; /* 13.7:1 */
+  --card: #1a1a19;
+  --card-foreground: #f0efec;
+  --popover: #1a1a19;
+  --popover-foreground: #f0efec;
+  --primary: #86b6ef;
+  --primary-foreground: #0f0f0e;
+  --secondary: #232321;
+  --secondary-foreground: #f0efec;
+  --muted: #232321;
+  --muted-foreground: #a09f96; /* 5.9:1 */
+  --accent: #232321;
+  --accent-foreground: #f0efec;
+  --destructive: #f97066;
+  --border: #2f2f2c;
+  --input: #7a7970; /* 3:1 */
+  --ring: #3987e5;
+
+  --ink-2: #c3c2b7; /* 8.8:1 */
+  --rule-strong: #46463f;
+  --highlight: #3987e5;
+  --highlight-ink: #86b6ef; /* 7.5:1 */
+  --highlight-wash: #16263b;
+  --bar: #3987e5; /* 4.3:1 */
+  --whisker: #c3c2b7;
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-heading: var(--font-sans);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-ink-2: var(--ink-2);
+  --color-rule-strong: var(--rule-strong);
+  --color-highlight: var(--highlight);
+  --color-highlight-ink: var(--highlight-ink);
+  --color-highlight-wash: var(--highlight-wash);
+  --color-bar: var(--bar);
+  --color-whisker: var(--whisker);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+  a {
+    @apply text-primary underline-offset-4;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}

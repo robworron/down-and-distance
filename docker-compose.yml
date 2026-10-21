@@ -1,0 +1,18 @@
+# Local Postgres for development. Production runs on Neon (also Postgres 18).
+services:
+  db:
+    image: postgres:18
+    container_name: dnd-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      # Host port 15432: Windows (WinNAT) can reserve 5432 after a restart.
+      - "15432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+
+volumes:
+  pgdata:

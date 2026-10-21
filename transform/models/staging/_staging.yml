@@ -1,0 +1,471 @@
+version: 2
+
+# Every staging model, seed and column is described (step 0.32); shared
+# descriptions live in models/_docs.md.
+
+models:
+  - name: stg_schedules
+    description: One row per game since 1999, with nflverse's known errors corrected (seed schedule_corrections), types fixed and team codes standardised.
+    columns:
+      - name: game_id
+        description: "{{ doc('game_id') }}"
+        data_tests: [unique, not_null]
+      - name: season
+        description: "{{ doc('season') }}"
+        data_tests: [not_null]
+      - name: game_type
+        description: "{{ doc('game_type') }}"
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [REG, WC, DIV, CON, SB]
+      - name: week
+        description: "{{ doc('week') }}"
+        data_tests: [not_null]
+      - name: gameday
+        description: "{{ doc('gameday') }}"
+        data_tests: [not_null]
+      - name: weekday
+        description: Day of the week as nflverse lists it, e.g. Sunday.
+        data_tests: [not_null]
+      - name: gametime
+        description: Kickoff as 'HH:MM' US Eastern, after schedule_corrections. NULL in 1999.
+      - name: kickoff_et
+        description: "{{ doc('kickoff_et') }}"
+      - name: kickoff_utc
+        description: "{{ doc('kickoff_utc') }}"
+      - name: home_team
+        description: Home team as today's franchise code (current_team macro).
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_teams')
+                field: team_abbr
+      - name: away_team
+        description: Away team as today's franchise code.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_teams')
+                field: team_abbr
+      - name: home_team_listed
+        description: Home team code as nflverse lists it that season (e.g. OAK).
+        data_tests: [not_null]
+      - name: away_team_listed
+        description: Away team code as nflverse lists it that season.
+        data_tests: [not_null]
+      - name: home_score
+        description: Home team's final score. NULL until played.
+      - name: away_score
+        description: Away team's final score. NULL until played.
+      - name: result
+        description: home_score - away_score (nflverse). NULL until played.
+      - name: total
+        description: home_score + away_score (nflverse). NULL until played.
+      - name: overtime
+        description: "{{ doc('overtime') }}"
+      - name: location
+        description: Home, or Neutral for a neutral-site game.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [Home, Neutral]
+      - name: stadium_id
+        description: "{{ doc('stadium_id') }}"
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stadiums')
+                field: stadium_id
+      - name: stadium_listed
+        description: Stadium name as nflverse lists it (before corrections).
+      - name: roof
+        description: The game's roof as nflverse lists it (outdoors, dome, open, closed), after corrections; blanks become NULL.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [outdoors, dome, open, closed]
+      - name: surface
+        description: The game's surface in nflverse's words (grass, fieldturf, ...); blanks become NULL.
+      - name: nflverse_temp_f
+        description: nflverse's reported kickoff temperature, °F (NULL for domes and many games). Used only to cross-check Open-Meteo.
+      - name: nflverse_wind_mph
+        description: nflverse's reported wind, mph. Used only to cross-check Open-Meteo.
+      - name: home_rest
+        description: Home team's days since its previous game (week 1 counts as 7).
+        data_tests: [not_null]
+      - name: away_rest
+        description: Away team's days since its previous game (week 1 counts as 7).
+        data_tests: [not_null]
+      - name: div_game
+        description: True for a game between division rivals (nflverse).
+        data_tests: [not_null]
+      - name: spread_line
+        description: Closing point spread as the home team's expected margin; positive means the home team was favoured.
+      - name: total_line
+        description: "{{ doc('total_line') }}"
+      - name: home_moneyline
+        description: Home team's closing moneyline (American odds).
+      - name: away_moneyline
+        description: Away team's closing moneyline (American odds).
+      - name: home_spread_odds
+        description: Odds on the home team against the spread.
+      - name: away_spread_odds
+        description: Odds on the away team against the spread.
+      - name: over_odds
+        description: Odds on the over.
+      - name: under_odds
+        description: Odds on the under.
+      - name: home_qb_id
+        description: Home starting quarterback's nflverse player id.
+      - name: away_qb_id
+        description: Away starting quarterback's nflverse player id.
+      - name: home_qb_name
+        description: Home starting quarterback's name.
+      - name: away_qb_name
+        description: Away starting quarterback's name.
+      - name: home_coach
+        description: Home head coach.
+      - name: away_coach
+        description: Away head coach.
+      - name: referee
+        description: Referee.
+      - name: old_game_id
+        description: The NFL's older game id (e.g. 2017121000).
+      - name: pfr
+        description: Pro Football Reference's game id, for linking out.
+      - name: espn
+        description: ESPN's game id, for linking out.
+
+  - name: stg_teams
+    description: The 32 current franchises (old codes OAK, SD, STL and nflverse's second Rams code LAR dropped).
+    columns:
+      - name: team_abbr
+        description: Team code, e.g. BUF. The key every team column joins to.
+        data_tests: [unique, not_null]
+      - name: team_name
+        description: Full name, e.g. Buffalo Bills.
+        data_tests: [not_null]
+      - name: team_nick
+        description: Nickname, e.g. Bills.
+        data_tests: [not_null]
+      - name: conference
+        description: AFC or NFC (today's alignment).
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [AFC, NFC]
+      - name: division
+        description: Division, e.g. AFC East (today's alignment).
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [AFC East, AFC North, AFC South, AFC West, NFC East, NFC North, NFC South, NFC West]
+      - name: team_color
+        description: Primary colour, hex.
+      - name: team_color2
+        description: Secondary colour, hex.
+      - name: team_logo_espn
+        description: ESPN logo URL.
+      - name: team_logo_squared
+        description: Square logo URL.
+      - name: team_wordmark
+        description: Wordmark image URL.
+
+  - name: stg_game_weather
+    description: Open-Meteo weather per finished game from 2000 outside fixed domes, at the kickoff hour and over the 3-hour game window. Closed-roof games have rows but games treats them as having no weather.
+    columns:
+      - name: game_id
+        description: "{{ doc('game_id') }}"
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_schedules')
+                field: game_id
+      - name: season
+        description: "{{ doc('season') }}"
+        data_tests: [not_null]
+      - name: kickoff_utc
+        description: Kickoff instant the loader used; must equal stg_schedules.kickoff_utc (test stg_kickoff_matches_weather).
+        data_tests: [not_null]
+      - name: latitude
+        description: Stadium latitude sent to Open-Meteo.
+        data_tests: [not_null]
+      - name: longitude
+        description: Stadium longitude sent to Open-Meteo.
+        data_tests: [not_null]
+      - name: temperature_f
+        description: Temperature at the kickoff hour, °F.
+      - name: precipitation_in
+        description: Precipitation in the hour before kickoff, inches.
+      - name: snowfall_in
+        description: Snowfall in the hour before kickoff, inches.
+      - name: wind_mph
+        description: 10 m wind at the kickoff hour, mph.
+      - name: wind_gust_mph
+        description: Wind gusts at the kickoff hour, mph.
+      - name: temperature_avg_f
+        description: Game window (kickoff hour k to k+3) mean temperature, °F. Feeds games.temperature_f.
+        data_tests: [not_null]
+      - name: wind_max_mph
+        description: Game window maximum 10 m wind, mph. Feeds games.wind_mph.
+        data_tests: [not_null]
+      - name: wind_gust_max_mph
+        description: Game window maximum gust, mph.
+      - name: precipitation_total_in
+        description: Total precipitation over the 3 hours after kickoff (hours k+1 to k+3), inches.
+        data_tests: [not_null]
+      - name: snowfall_total_in
+        description: Total snowfall over the 3 hours after kickoff, inches.
+        data_tests: [not_null]
+
+  - name: stg_pbp
+    description: One row per play since 2016 (60 of nflverse's columns), team codes mapped to today's franchises. 0/1 flags stay small integers so sum() and avg() give counts and rates.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [game_id, play_id]
+    columns:
+      - name: game_id
+        description: "{{ doc('game_id') }}"
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_schedules')
+                field: game_id
+      - name: play_id
+        description: Play number, unique only within a game.
+        data_tests: [not_null]
+      - name: season
+        description: "{{ doc('season') }}"
+        data_tests: [not_null]
+      - name: week
+        description: "{{ doc('week') }}"
+        data_tests: [not_null]
+      - name: season_type
+        description: "{{ doc('season_type') }}"
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [REG, POST]
+      - name: posteam
+        description: Team with the ball (today's franchise code). NULL on timeouts and quarter ends.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_teams')
+                field: team_abbr
+      - name: defteam
+        description: Defending team (today's franchise code).
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_teams')
+                field: team_abbr
+      - name: posteam_type
+        description: home or away, for posteam.
+      - name: qtr
+        description: Quarter; 5 is overtime.
+      - name: down
+        description: Down, 1 to 4. NULL on kickoffs, extra points and other untimed downs.
+      - name: ydstogo
+        description: Yards needed for a first down.
+      - name: yardline_100
+        description: Yards from the opponent's end zone (20 or less is the red zone).
+      - name: goal_to_go
+        description: 1 on a down-and-goal.
+      - name: game_seconds_remaining
+        description: Seconds left in regulation at the snap.
+      - name: score_differential
+        description: posteam's score minus defteam's before the play.
+      - name: fixed_drive
+        description: Drive number within the game.
+      - name: fixed_drive_result
+        description: How the drive ended, e.g. Touchdown, Punt, Field goal, Turnover.
+      - name: play_type
+        description: pass, run, punt, field_goal, kickoff, extra_point, qb_kneel, qb_spike or no_play (a play wiped out by a penalty).
+      - name: pass
+        description: 1 on a dropback (pass attempts, sacks and scrambles, penalised snaps included); 0 on kneels and spikes.
+      - name: rush
+        description: 1 on a designed run (scrambles are pass plays); 0 on kneels.
+      - name: qb_dropback
+        description: 1 if the quarterback dropped back.
+      - name: qb_scramble
+        description: 1 on a quarterback scramble.
+      - name: qb_kneel
+        description: 1 on a kneel-down.
+      - name: qb_spike
+        description: 1 on a spike.
+      - name: aborted_play
+        description: 1 on a botched snap or aborted play.
+      - name: two_point_attempt
+        description: 1 on a two-point try.
+      - name: epa
+        description: Expected points added by the play (nflverse model).
+      - name: success
+        description: 1 if epa > 0.
+      - name: yards_gained
+        description: Yards gained on the play (negative on sacks and losses).
+      - name: first_down
+        description: 1 if the play earned a first down.
+      - name: wp
+        description: posteam's win probability before the play.
+      - name: wpa
+        description: Win probability added by the play.
+      - name: pass_attempt
+        description: 1 on a pass attempt (sacks and spikes included).
+      - name: complete_pass
+        description: 1 on a completion.
+      - name: air_yards
+        description: Yards the pass travelled past the line of scrimmage.
+      - name: cpoe
+        description: Completion percentage over expected (nflverse model).
+      - name: pass_oe
+        description: Pass-rate over expected for the situation (nflverse model).
+      - name: rush_attempt
+        description: 1 on a rush attempt (scrambles and kneels included).
+      - name: interception
+        description: 1 on an interception.
+      - name: fumble
+        description: 1 if any fumble happened on the play.
+      - name: fumble_lost
+        description: 1 if a fumble was lost on the play.
+      - name: sack
+        description: 1 on a sack.
+      - name: touchdown
+        description: 1 if any touchdown was scored on the play.
+      - name: pass_touchdown
+        description: 1 on a passing touchdown.
+      - name: rush_touchdown
+        description: 1 on a rushing touchdown.
+      - name: return_touchdown
+        description: 1 on a return touchdown.
+      - name: td_team
+        description: Team that scored the touchdown.
+      - name: safety
+        description: 1 on a safety.
+      - name: third_down_converted
+        description: 1 if a third down was converted.
+      - name: third_down_failed
+        description: 1 if a third down failed.
+      - name: fourth_down_converted
+        description: 1 if a fourth down was converted.
+      - name: fourth_down_failed
+        description: 1 if a fourth down failed.
+      - name: penalty
+        description: 1 if an accepted penalty was called on the play.
+      - name: penalty_team
+        description: Team charged with the penalty.
+      - name: penalty_yards
+        description: Yards of the penalty.
+      - name: field_goal_attempt
+        description: 1 on a field-goal try.
+      - name: field_goal_result
+        description: made, missed or blocked.
+      - name: extra_point_result
+        description: good, failed or blocked.
+      - name: punt_attempt
+        description: 1 on a punt.
+      - name: play_description
+        description: nflverse's play text (desc, renamed because DESC is an SQL keyword).
+
+seeds:
+  - name: stadiums
+    description: One row per stadium in schedules (plus Croke Park and Berlin's Olympiastadion, reached through corrections), checked by pipeline/validate_stadiums.py.
+    columns:
+      - name: stadium_id
+        description: nflverse stadium id.
+        data_tests: [unique, not_null]
+      - name: name
+        description: Current name, with the old one in brackets.
+        data_tests: [not_null]
+      - name: city
+        description: The stadium's actual municipality, e.g. Foxborough.
+        data_tests: [not_null]
+      - name: region
+        description: State or province, e.g. Massachusetts.
+        data_tests: [not_null]
+      - name: country
+        description: ISO country code, e.g. US.
+        data_tests: [not_null]
+      - name: latitude
+        description: Centre of the field, latitude.
+        data_tests: [not_null]
+      - name: longitude
+        description: Centre of the field, longitude.
+        data_tests: [not_null]
+      - name: timezone
+        description: IANA time zone name, e.g. America/Phoenix (which skips daylight saving time).
+        data_tests: [not_null]
+      - name: altitude_m
+        description: Elevation in metres (Open-Meteo elevation API).
+        data_tests: [not_null]
+      - name: roof
+        description: Physical roof type. Whether a retractable roof was open for a game comes from schedules.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [outdoors, dome, retractable]
+      - name: surface
+        description: The stadium's usual surface in nflverse's words, the fallback when a game's is blank.
+        data_tests: [not_null]
+
+  - name: team_code_map
+    description: Relocated teams' old codes mapped to today's franchise (used by the current_team macro).
+    columns:
+      - name: old_code
+        description: Code nflverse used before the move, e.g. OAK.
+        data_tests: [unique, not_null]
+      - name: current_code
+        description: Today's code, e.g. LV.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_teams')
+                field: team_abbr
+      - name: note
+        description: The move, e.g. Raiders moved from Oakland to Las Vegas in 2020.
+
+  - name: schedule_corrections
+    description: Values nflverse publishes wrongly (kickoff times, venues, roofs), one row per game and column, applied by stg_schedules and by the weather loader (pipeline/corrections.py).
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [game_id, column_name]
+    columns:
+      - name: game_id
+        description: "{{ doc('game_id') }}"
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('raw', 'schedules')
+                field: game_id
+      - name: column_name
+        description: The raw.schedules column being corrected.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [gametime, stadium_id, roof]
+      - name: nflverse_value
+        description: The value nflverse publishes; test_schedule_corrections_still_needed flags it if nflverse changes it.
+        data_tests: [not_null]
+      - name: corrected_value
+        description: The right value. NULL means unknown (Madrid 2025's roof).
+      - name: note
+        description: Why, with the source.
+        data_tests: [not_null]

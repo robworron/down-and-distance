@@ -1,0 +1,941 @@
+version: 2
+
+# Every model and column is described (step 0.32). Columns shared between
+# models point at one description in models/_docs.md via doc(); persist_docs
+# (dbt_project.yml) writes them into Postgres as comments, so DBeaver shows
+# them too.
+
+seeds:
+  - name: situations
+    description: The situation registry (step 0.30), one row per situation the site can filter on. The website builds its filters from it and the split marts generate their SQL from it. level is game (same for both teams) or team (can differ).
+    columns:
+      - name: key
+        description: Situation id, e.g. wind. The split marts' situation_key.
+        data_tests: [unique, not_null]
+      - name: label
+        description: Display name, e.g. Time-zone travel.
+        data_tests: [not_null]
+      - name: category
+        description: "Filter group: venue, stadium, weather, schedule, travel or matchup."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [venue, stadium, weather, schedule, travel, matchup]
+      - name: level
+        description: "game: the same for both teams (league win % is 50% by construction); team: can differ between them."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [game, team]
+      - name: column_name
+        description: The team_games column holding the value (column is an SQL keyword).
+        data_tests: [unique, not_null]
+      - name: value_list
+        description: The values the column takes, in display order, separated by | (values is an SQL keyword).
+        data_tests: [not_null]
+      - name: description
+        description: One sentence for the site.
+        data_tests: [not_null]
+      - name: in_v1
+        description: Shown in v1. False for situations trimmed on evidence in step 0.39 (surface, primetime, opponent type), whose data the split marts still carry, and for later additions not yet shown.
+        data_tests: [not_null]
+      - name: tier
+        description: "How the site groups a v1 situation: featured (measurably changes results in the team situation analysis), filter (no clear effect so far) or context (venue and spread role, the baselines). NULL exactly when in_v1 is false."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [featured, filter, context]
+      - name: sort_order
+        description: Display order on the site, 1 first; tiers are shown featured, filter, context, and sort_order orders the situations within them.
+        data_tests: [unique, not_null]
+      - name: value_labels
+        description: Display labels for value_list, in the same order and separated by |, e.g. Under 10 mph|10–14 mph|15+ mph.
+        data_tests: [not_null]
+      - name: shared_values
+        description: "Values of a team-level situation that both teams usually share (venue neutral, rest advantage even, spread role pickem, rest short), separated by |. The league's win % and margin are 50% and 0 by construction there, so the site shows no league comparison for them. NULL when there are none."
+      - name: shrinkage_k
+        description: "Shrinkage strength in games, from notebook 06's persistence method: a team's own split gets weight n / (n + k) in the shrunk win %. Rounded to whole games."
+        data_tests: [not_null]
+
+models:
+  - name: dim_teams
+    description: One row per current franchise (32), the teams the site lists and links to, with names, today's conference and division, and colours. No logos or wordmarks, which are trademarks (step 0.42).
+    columns:
+      - name: team_abbr
+        description: "{{ doc('team') }}"
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_teams')
+                field: team_abbr
+      - name: team_name
+        description: Full name, e.g. Buffalo Bills.
+        data_tests: [not_null]
+      - name: team_nick
+        description: Nickname, e.g. Bills.
+        data_tests: [not_null]
+      - name: conference
+        description: AFC or NFC (today's alignment).
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [AFC, NFC]
+      - name: division
+        description: Division, e.g. AFC East (today's alignment). Alphabetical order is the league's usual order (East, North, South, West).
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [AFC East, AFC North, AFC South, AFC West, NFC East, NFC North, NFC South, NFC West]
+      - name: team_color
+        description: Primary colour as upper-case hex, e.g. #00338D. The site's badges and team header use it, with black or white text chosen by contrast.
+        data_tests: [not_null]
+      - name: team_color2
+        description: Secondary colour as upper-case hex; the stripe under the team header.
+        data_tests: [not_null]
+
+  - name: dim_stadiums
+    description: One row per stadium in the stadiums seed, with the home-field facts the team page shows (step 0.43). The seed lives in staging, which the website can't read.
+    columns:
+      - name: stadium_id
+        description: "{{ doc('stadium_id') }}"
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stadiums')
+                field: stadium_id
+      - name: stadium_name
+        description: The stadium's current name, without the bracketed note the seed adds to 14 names (a former name, or which stadium is meant).
+        data_tests: [not_null]
+      - name: city
+        description: The stadium's actual municipality, e.g. Orchard Park.
+        data_tests: [not_null]
+      - name: region
+        description: State or province, e.g. New York.
+        data_tests: [not_null]
+      - name: country
+        description: ISO country code, e.g. US.
+        data_tests: [not_null]
+      - name: timezone
+        description: IANA time zone, e.g. America/New_York.
+        data_tests: [not_null]
+      - name: altitude_m
+        description: Elevation in metres (Open-Meteo's elevation API).
+        data_tests: [not_null]
+      - name: roof
+        description: "Physical roof: outdoors, dome or retractable. Whether a retractable roof was open for a game is on games.roof_type."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [outdoors, dome, retractable]
+      - name: surface
+        description: The stadium's usual surface in nflverse's terms, e.g. fieldturf or a_turf.
+        data_tests: [not_null]
+      - name: surface_type
+        description: grass (grass or dessograss, as on games.surface_type) or turf.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [grass, turf]
+
+  - name: games
+    description: One row per game since 1999 with every game-level situation bucketed. Weather is NULL unless the game was played in the open.
+    columns:
+      - name: game_id
+        description: "{{ doc('game_id') }}"
+        data_tests: [unique, not_null]
+      - name: season
+        description: "{{ doc('season') }}"
+        data_tests: [not_null]
+      - name: week
+        description: "{{ doc('week') }}"
+        data_tests: [not_null]
+      - name: game_type
+        description: "{{ doc('game_type') }}"
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [REG, WC, DIV, CON, SB]
+      - name: is_playoff
+        description: "{{ doc('is_playoff') }}"
+        data_tests: [not_null]
+      - name: gameday
+        description: "{{ doc('gameday') }}"
+        data_tests: [not_null]
+      - name: weekday
+        description: Day of the week as nflverse lists it, e.g. Sunday.
+        data_tests: [not_null]
+      - name: kickoff_et
+        description: "{{ doc('kickoff_et') }}"
+      - name: kickoff_utc
+        description: "{{ doc('kickoff_utc') }}"
+      - name: home_team
+        description: Designated home team (today's franchise code), even at a neutral site.
+        data_tests: [not_null]
+      - name: away_team
+        description: Away team (today's franchise code).
+        data_tests: [not_null]
+      - name: home_score
+        description: Home team's final score. NULL until played.
+      - name: away_score
+        description: Away team's final score. NULL until played.
+      - name: is_finished
+        description: "{{ doc('is_finished') }}"
+        data_tests: [not_null]
+      - name: overtime
+        description: "{{ doc('overtime') }}"
+      - name: home_rest
+        description: Home team's days since its previous game (week 1 counts as 7).
+        data_tests: [not_null]
+      - name: away_rest
+        description: Away team's days since its previous game (week 1 counts as 7).
+        data_tests: [not_null]
+      - name: spread_line
+        description: Closing point spread as the home team's expected margin; positive means the home team was favoured.
+      - name: total_line
+        description: "{{ doc('total_line') }}"
+      - name: stadium_id
+        description: "{{ doc('stadium_id') }}"
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stadiums')
+                field: stadium_id
+      - name: stadium_name
+        description: Stadium name from the stadiums seed (current name, old name in brackets).
+        data_tests: [not_null]
+      - name: is_neutral_site
+        description: "{{ doc('is_neutral_site') }}"
+        data_tests: [not_null]
+      - name: roof_type
+        description: "{{ doc('roof_type') }}"
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [outdoors, dome, retractable_open, retractable_closed]
+      - name: surface_type
+        description: "{{ doc('surface_type') }}"
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [grass, turf]
+      - name: is_open_air
+        description: "{{ doc('is_open_air') }}"
+        data_tests: [not_null]
+      - name: temperature_f
+        description: "{{ doc('temperature_f') }}"
+      - name: wind_mph
+        description: "{{ doc('wind_mph') }}"
+      - name: precipitation_in
+        description: "{{ doc('precipitation_in') }}"
+      - name: snowfall_in
+        description: "{{ doc('snowfall_in') }}"
+      - name: temperature_bucket
+        description: "{{ doc('temperature_bucket') }}"
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [32_or_below, 33_to_50, 51_to_79, 80_or_above]
+      - name: wind_bucket
+        description: "{{ doc('wind_bucket') }}"
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [under_10, 10_to_14, 15_plus]
+      - name: precipitation_bucket
+        description: "{{ doc('precipitation_bucket') }}"
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [none, light_rain, heavy_rain, snow]
+      - name: time_slot
+        description: "{{ doc('time_slot') }}"
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [tnf, sunday_early, sunday_late, snf, mnf, saturday, other]
+      - name: is_primetime
+        description: "{{ doc('is_primetime') }}"
+      - name: opponent_type
+        description: "{{ doc('opponent_type') }}"
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [divisional, conference, non_conference]
+      - name: div_game
+        description: nflverse's divisional-game flag, the source of opponent_type's divisional value.
+        data_tests: [not_null]
+
+  - name: team_seasons
+    description: One row per team per season with the stadium it called home (most non-neutral home games that season). team_games measures travel from it.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [team, season]
+    columns:
+      - name: team
+        description: "{{ doc('team') }}"
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_teams')
+                field: team_abbr
+      - name: season
+        description: "{{ doc('season') }}"
+        data_tests: [not_null]
+      - name: home_stadium_id
+        description: The stadium of most of the team's non-neutral home games that season (ties to the latest used).
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stadiums')
+                field: stadium_id
+      - name: home_stadium_name
+        description: That stadium's name.
+        data_tests: [not_null]
+      - name: home_timezone
+        description: That stadium's IANA time zone, e.g. America/Phoenix.
+        data_tests: [not_null]
+      - name: home_latitude
+        description: That stadium's latitude.
+        data_tests: [not_null]
+      - name: home_longitude
+        description: That stadium's longitude.
+        data_tests: [not_null]
+      - name: home_games
+        description: Non-neutral home games the team played there that season (finished or scheduled).
+        data_tests: [not_null]
+
+  - name: team_game_stats
+    description: One row per team per game since 2016 from play-by-play, offense and defense (the opponent's offense), as sums and counts only. Box-score stats follow official rules; EPA and success use real plays (no kneels or spikes).
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [game_id, team]
+    columns:
+      - name: game_id
+        description: "{{ doc('game_id') }}"
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('games')
+                field: game_id
+      - name: season
+        description: "{{ doc('season') }}"
+        data_tests: [not_null]
+      - name: team
+        description: "{{ doc('team') }}"
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_teams')
+                field: team_abbr
+      - name: opponent
+        description: "{{ doc('opponent') }}"
+        data_tests: [not_null]
+      - name: plays
+        description: "{{ doc('plays') }}"
+        data_tests: [not_null]
+      - name: yards
+        description: "{{ doc('yards') }}"
+        data_tests: [not_null]
+      - name: dropbacks
+        description: "{{ doc('dropbacks') }}"
+        data_tests: [not_null]
+      - name: rushes
+        description: "{{ doc('rushes') }}"
+        data_tests: [not_null]
+      - name: epa
+        description: "{{ doc('epa') }}"
+        data_tests: [not_null]
+      - name: successes
+        description: "{{ doc('successes') }}"
+        data_tests: [not_null]
+      - name: third_down_attempts
+        description: "{{ doc('third_down_attempts') }}"
+        data_tests: [not_null]
+      - name: third_down_conversions
+        description: "{{ doc('third_down_conversions') }}"
+        data_tests: [not_null]
+      - name: red_zone_trips
+        description: "{{ doc('red_zone_trips') }}"
+        data_tests: [not_null]
+      - name: red_zone_tds
+        description: "{{ doc('red_zone_tds') }}"
+        data_tests: [not_null]
+      - name: sacks_taken
+        description: "{{ doc('sacks_taken') }}"
+        data_tests: [not_null]
+      - name: interceptions
+        description: "{{ doc('interceptions') }}"
+        data_tests: [not_null]
+      - name: fumbles_lost
+        description: "{{ doc('fumbles_lost') }}"
+        data_tests: [not_null]
+      - name: turnovers
+        description: "{{ doc('turnovers') }}"
+        data_tests: [not_null]
+      - name: penalties
+        description: "{{ doc('penalties') }}"
+        data_tests: [not_null]
+      - name: penalty_yards
+        description: "{{ doc('penalty_yards') }}"
+        data_tests: [not_null]
+      - name: def_plays
+        description: "{{ doc('def_plays') }}"
+        data_tests: [not_null]
+      - name: def_yards
+        description: "{{ doc('def_yards') }}"
+        data_tests: [not_null]
+      - name: def_dropbacks
+        description: "{{ doc('def_dropbacks') }}"
+        data_tests: [not_null]
+      - name: def_rushes
+        description: "{{ doc('def_rushes') }}"
+        data_tests: [not_null]
+      - name: def_epa
+        description: "{{ doc('def_epa') }}"
+        data_tests: [not_null]
+      - name: def_successes
+        description: "{{ doc('def_successes') }}"
+        data_tests: [not_null]
+      - name: sacks
+        description: "{{ doc('sacks') }}"
+        data_tests: [not_null]
+      - name: takeaways
+        description: "{{ doc('takeaways') }}"
+        data_tests: [not_null]
+
+  - name: team_games
+    description: Two rows per game since 1999, one per team, with team-level fields (points, result, rest, spread from the team's side, betting results, travel and body clock), every game-level situation, play-by-play stats from 2016, and form entering the game.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [game_id, team]
+    columns:
+      - name: game_id
+        description: "{{ doc('game_id') }}"
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('games')
+                field: game_id
+      - name: season
+        description: "{{ doc('season') }}"
+        data_tests: [not_null]
+      - name: week
+        description: "{{ doc('week') }}"
+        data_tests: [not_null]
+      - name: game_type
+        description: "{{ doc('game_type') }}"
+        data_tests: [not_null]
+      - name: is_playoff
+        description: "{{ doc('is_playoff') }}"
+        data_tests: [not_null]
+      - name: season_type
+        description: "{{ doc('season_type') }}"
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [REG, POST]
+      - name: gameday
+        description: "{{ doc('gameday') }}"
+        data_tests: [not_null]
+      - name: kickoff_et
+        description: "{{ doc('kickoff_et') }}"
+      - name: kickoff_utc
+        description: "{{ doc('kickoff_utc') }}"
+      - name: team
+        description: "{{ doc('team') }}"
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_teams')
+                field: team_abbr
+      - name: opponent
+        description: "{{ doc('opponent') }}"
+        data_tests: [not_null]
+      - name: is_home
+        description: True for the designated home team, even at a neutral site (venue says neutral there).
+        data_tests: [not_null]
+      - name: venue
+        description: "Situation 'venue': home, away, or neutral (both teams) at a neutral site."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [home, away, neutral]
+      - name: is_finished
+        description: "{{ doc('is_finished') }}"
+        data_tests: [not_null]
+      - name: points_for
+        description: Points the team scored. NULL until played.
+      - name: points_against
+        description: Points the opponent scored. NULL until played.
+      - name: margin
+        description: points_for - points_against; positive = won by that much.
+      - name: result
+        description: win, loss or tie. NULL until played.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [win, loss, tie]
+      - name: overtime
+        description: "{{ doc('overtime') }}"
+      - name: rest_days
+        description: Days since the team's previous game (nflverse; week 1 counts as 7).
+        data_tests: [not_null]
+      - name: rest_diff
+        description: rest_days minus the opponent's; positive = more rested.
+        data_tests: [not_null]
+      - name: rest_bucket
+        description: "Situation 'rest': short (5 days or less), normal (6-8), extra (9-12) or bye (13+)."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [short, normal, extra, bye]
+      - name: rest_advantage
+        description: "Situation 'rest advantage' (step 0.39): rest days against the opponent's. less_rest (3 or more fewer), even (within 2 either way), more_rest (3 or more more). The mirror of the opponent's value."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [less_rest, even, more_rest]
+      - name: team_spread
+        description: The closing spread from this team's side, betting convention (negative = favourite), e.g. -3.5.
+      - name: spread_role
+        description: "Situation 'spread role': big_favourite (-7 or more), favourite (-3 to -6.5), pickem (under 3 either way), underdog (+3 to +6.5), big_underdog (+7 or more)."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [big_favourite, favourite, pickem, underdog, big_underdog]
+      - name: ats_result
+        description: "Against the spread: cover if margin + team_spread > 0, push if 0, no_cover if below. NULL until played."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [cover, push, no_cover]
+      - name: total_line
+        description: "{{ doc('total_line') }}"
+      - name: total_result
+        description: "over, under or push: both teams' points against total_line, the same on both rows. NULL until played."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [over, under, push]
+      - name: home_stadium_id
+        description: The team's home stadium that season (team_seasons), where travel is measured from.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stadiums')
+                field: stadium_id
+      - name: travel_miles
+        description: Great-circle (haversine) miles from the team's home stadium to the game's, rounded. 0 at the team's own stadium.
+        data_tests: [not_null]
+      - name: time_zone_shift
+        description: Hours the venue's clock is ahead of the team's home clock at kickoff (+ = travelled east), wrapped into -12..+12. Uses 1 pm ET in 1999.
+        data_tests: [not_null]
+      - name: time_zone_travel
+        description: "Situation 'time-zone travel': none, eastbound_1_3, westbound_1_3 or long_haul_4_plus, from time_zone_shift."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [none, eastbound_1_3, westbound_1_3, long_haul_4_plus]
+      - name: body_clock_time
+        description: Kickoff on the team's home clock (Seattle at 1 pm ET reads 10:00). NULL in 1999.
+      - name: body_clock
+        description: "Situation 'body clock': morning (before 12:00), afternoon (12:00-15:59), late_afternoon (16:00-18:59) or night (19:00+), from body_clock_time."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [morning, afternoon, late_afternoon, night]
+      - name: stadium_id
+        description: "{{ doc('stadium_id') }}"
+        data_tests: [not_null]
+      - name: is_neutral_site
+        description: "{{ doc('is_neutral_site') }}"
+        data_tests: [not_null]
+      - name: roof_type
+        description: "{{ doc('roof_type') }}"
+      - name: surface_type
+        description: "{{ doc('surface_type') }}"
+        data_tests: [not_null]
+      - name: is_open_air
+        description: "{{ doc('is_open_air') }}"
+        data_tests: [not_null]
+      - name: temperature_f
+        description: "{{ doc('temperature_f') }}"
+      - name: wind_mph
+        description: "{{ doc('wind_mph') }}"
+      - name: precipitation_in
+        description: "{{ doc('precipitation_in') }}"
+      - name: snowfall_in
+        description: "{{ doc('snowfall_in') }}"
+      - name: temperature_bucket
+        description: "{{ doc('temperature_bucket') }}"
+      - name: wind_bucket
+        description: "{{ doc('wind_bucket') }}"
+      - name: precipitation_bucket
+        description: "{{ doc('precipitation_bucket') }}"
+      - name: time_slot
+        description: "{{ doc('time_slot') }}"
+      - name: is_primetime
+        description: "{{ doc('is_primetime') }}"
+      - name: opponent_type
+        description: "{{ doc('opponent_type') }}"
+        data_tests: [not_null]
+      - name: plays
+        description: "{{ doc('plays') }}"
+      - name: yards
+        description: "{{ doc('yards') }}"
+      - name: dropbacks
+        description: "{{ doc('dropbacks') }}"
+      - name: rushes
+        description: "{{ doc('rushes') }}"
+      - name: epa
+        description: "{{ doc('epa') }}"
+      - name: successes
+        description: "{{ doc('successes') }}"
+      - name: third_down_attempts
+        description: "{{ doc('third_down_attempts') }}"
+      - name: third_down_conversions
+        description: "{{ doc('third_down_conversions') }}"
+      - name: red_zone_trips
+        description: "{{ doc('red_zone_trips') }}"
+      - name: red_zone_tds
+        description: "{{ doc('red_zone_tds') }}"
+      - name: sacks_taken
+        description: "{{ doc('sacks_taken') }}"
+      - name: interceptions
+        description: "{{ doc('interceptions') }}"
+      - name: fumbles_lost
+        description: "{{ doc('fumbles_lost') }}"
+      - name: turnovers
+        description: "{{ doc('turnovers') }}"
+      - name: penalties
+        description: "{{ doc('penalties') }}"
+      - name: penalty_yards
+        description: "{{ doc('penalty_yards') }}"
+      - name: def_plays
+        description: "{{ doc('def_plays') }}"
+      - name: def_yards
+        description: "{{ doc('def_yards') }}"
+      - name: def_dropbacks
+        description: "{{ doc('def_dropbacks') }}"
+      - name: def_rushes
+        description: "{{ doc('def_rushes') }}"
+      - name: def_epa
+        description: "{{ doc('def_epa') }}"
+      - name: def_successes
+        description: "{{ doc('def_successes') }}"
+      - name: sacks
+        description: "{{ doc('sacks') }}"
+      - name: takeaways
+        description: "{{ doc('takeaways') }}"
+      - name: game_number
+        description: The team's nth game of the season, playoffs included (ROW_NUMBER by date).
+        data_tests: [not_null]
+      - name: prev_result
+        description: The team's previous result this season (LAG). NULL in game 1 or if that game isn't played yet.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [win, loss, tie]
+      - name: streak
+        description: "Run of identical results entering the game: +3 = won the last three, -2 = lost the last two, 0 after a tie. NULL with prev_result."
+      - name: after_blowout_loss
+        description: True if the previous game this season was lost by 17+ points. NULL with prev_result.
+      - name: games_since_bye
+        description: Games since the team last rested (a bye of 13+ days, or the season start). 0 in week 1 and the first game back.
+        data_tests: [not_null]
+      - name: consecutive_road_games
+        description: Road games in a row, this one included; 0 at home. A neutral site counts as a road game.
+        data_tests: [not_null]
+
+  - name: mart_team_splits
+    description: A team's record in every situation value, per season and season type (REG or POST), from finished games. Generated from the situation registry. Sums and counts only, so any season range re-aggregates correctly.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [team, season, season_type, situation_key, situation_value]
+    columns:
+      - name: team
+        description: "{{ doc('team') }}"
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_teams')
+                field: team_abbr
+      - name: season
+        description: "{{ doc('season') }}"
+        data_tests: [not_null]
+      - name: season_type
+        description: "{{ doc('season_type') }}"
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [REG, POST]
+      - name: situation_key
+        description: "{{ doc('situation_key') }}"
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('situations')
+                field: key
+      - name: situation_level
+        description: "{{ doc('situation_level') }}"
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [game, team]
+      - name: situation_value
+        description: "{{ doc('situation_value') }}"
+        data_tests: [not_null]
+      - name: games
+        description: "{{ doc('split_games') }}"
+        data_tests: [not_null]
+      - name: wins
+        description: "{{ doc('split_wins') }}"
+        data_tests: [not_null]
+      - name: losses
+        description: "{{ doc('split_losses') }}"
+        data_tests: [not_null]
+      - name: ties
+        description: "{{ doc('split_ties') }}"
+        data_tests: [not_null]
+      - name: points_for
+        description: "{{ doc('split_points_for') }}"
+        data_tests: [not_null]
+      - name: points_against
+        description: "{{ doc('split_points_against') }}"
+        data_tests: [not_null]
+      - name: margin_sq
+        description: "{{ doc('split_margin_sq') }}"
+        data_tests: [not_null]
+      - name: total_points_sq
+        description: "{{ doc('split_total_points_sq') }}"
+        data_tests: [not_null]
+      - name: ats_games
+        description: "{{ doc('ats_games') }}"
+        data_tests: [not_null]
+      - name: ats_covers
+        description: "{{ doc('ats_covers') }}"
+        data_tests: [not_null]
+      - name: ats_pushes
+        description: "{{ doc('ats_pushes') }}"
+        data_tests: [not_null]
+      - name: ou_games
+        description: "{{ doc('ou_games') }}"
+        data_tests: [not_null]
+      - name: overs
+        description: "{{ doc('overs') }}"
+        data_tests: [not_null]
+      - name: unders
+        description: "{{ doc('unders') }}"
+        data_tests: [not_null]
+      - name: ou_pushes
+        description: "{{ doc('ou_pushes') }}"
+        data_tests: [not_null]
+      - name: stats_games
+        description: "{{ doc('stats_games') }}"
+        data_tests: [not_null]
+      - name: plays
+        description: "{{ doc('plays') }}"
+      - name: yards
+        description: "{{ doc('yards') }}"
+      - name: dropbacks
+        description: "{{ doc('dropbacks') }}"
+      - name: rushes
+        description: "{{ doc('rushes') }}"
+      - name: epa
+        description: "{{ doc('epa') }}"
+      - name: successes
+        description: "{{ doc('successes') }}"
+      - name: def_plays
+        description: "{{ doc('def_plays') }}"
+      - name: def_yards
+        description: "{{ doc('def_yards') }}"
+      - name: def_dropbacks
+        description: "{{ doc('def_dropbacks') }}"
+      - name: def_rushes
+        description: "{{ doc('def_rushes') }}"
+      - name: def_epa
+        description: "{{ doc('def_epa') }}"
+      - name: def_successes
+        description: "{{ doc('def_successes') }}"
+      - name: turnovers
+        description: "{{ doc('turnovers') }}"
+      - name: takeaways
+        description: "{{ doc('takeaways') }}"
+      - name: sacks
+        description: "{{ doc('sacks') }}"
+      - name: sacks_taken
+        description: "{{ doc('sacks_taken') }}"
+      - name: third_down_attempts
+        description: "{{ doc('third_down_attempts') }}"
+      - name: third_down_conversions
+        description: "{{ doc('third_down_conversions') }}"
+      - name: red_zone_trips
+        description: "{{ doc('red_zone_trips') }}"
+      - name: red_zone_tds
+        description: "{{ doc('red_zone_tds') }}"
+      - name: penalties
+        description: "{{ doc('penalties') }}"
+      - name: penalty_yards
+        description: "{{ doc('penalty_yards') }}"
+
+  - name: mart_league_splits
+    description: The whole league's record in every situation value, per season and season type; mart_team_splits summed over teams. games counts team-games, so win % is meaningful only for team-level situations.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [season, season_type, situation_key, situation_value]
+    columns:
+      - name: season
+        description: "{{ doc('season') }}"
+        data_tests: [not_null]
+      - name: season_type
+        description: "{{ doc('season_type') }}"
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [REG, POST]
+      - name: situation_key
+        description: "{{ doc('situation_key') }}"
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('situations')
+                field: key
+      - name: situation_level
+        description: "{{ doc('situation_level') }}"
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [game, team]
+      - name: situation_value
+        description: "{{ doc('situation_value') }}"
+        data_tests: [not_null]
+      - name: games
+        description: "{{ doc('split_games') }} Counts team-games: a game adds two."
+        data_tests: [not_null]
+      - name: wins
+        description: "{{ doc('split_wins') }}"
+        data_tests: [not_null]
+      - name: losses
+        description: "{{ doc('split_losses') }}"
+        data_tests: [not_null]
+      - name: ties
+        description: "{{ doc('split_ties') }}"
+        data_tests: [not_null]
+      - name: points_for
+        description: "{{ doc('split_points_for') }}"
+        data_tests: [not_null]
+      - name: points_against
+        description: "{{ doc('split_points_against') }}"
+        data_tests: [not_null]
+      - name: margin_sq
+        description: "{{ doc('split_margin_sq') }}"
+        data_tests: [not_null]
+      - name: total_points_sq
+        description: "{{ doc('split_total_points_sq') }}"
+        data_tests: [not_null]
+      - name: ats_games
+        description: "{{ doc('ats_games') }}"
+        data_tests: [not_null]
+      - name: ats_covers
+        description: "{{ doc('ats_covers') }}"
+        data_tests: [not_null]
+      - name: ats_pushes
+        description: "{{ doc('ats_pushes') }}"
+        data_tests: [not_null]
+      - name: ou_games
+        description: "{{ doc('ou_games') }}"
+        data_tests: [not_null]
+      - name: overs
+        description: "{{ doc('overs') }}"
+        data_tests: [not_null]
+      - name: unders
+        description: "{{ doc('unders') }}"
+        data_tests: [not_null]
+      - name: ou_pushes
+        description: "{{ doc('ou_pushes') }}"
+        data_tests: [not_null]
+      - name: stats_games
+        description: "{{ doc('stats_games') }}"
+        data_tests: [not_null]
+      - name: plays
+        description: "{{ doc('plays') }}"
+      - name: yards
+        description: "{{ doc('yards') }}"
+      - name: dropbacks
+        description: "{{ doc('dropbacks') }}"
+      - name: rushes
+        description: "{{ doc('rushes') }}"
+      - name: epa
+        description: "{{ doc('epa') }}"
+      - name: successes
+        description: "{{ doc('successes') }}"
+      - name: def_plays
+        description: "{{ doc('def_plays') }}"
+      - name: def_yards
+        description: "{{ doc('def_yards') }}"
+      - name: def_dropbacks
+        description: "{{ doc('def_dropbacks') }}"
+      - name: def_rushes
+        description: "{{ doc('def_rushes') }}"
+      - name: def_epa
+        description: "{{ doc('def_epa') }}"
+      - name: def_successes
+        description: "{{ doc('def_successes') }}"
+      - name: turnovers
+        description: "{{ doc('turnovers') }}"
+      - name: takeaways
+        description: "{{ doc('takeaways') }}"
+      - name: sacks
+        description: "{{ doc('sacks') }}"
+      - name: sacks_taken
+        description: "{{ doc('sacks_taken') }}"
+      - name: third_down_attempts
+        description: "{{ doc('third_down_attempts') }}"
+      - name: third_down_conversions
+        description: "{{ doc('third_down_conversions') }}"
+      - name: red_zone_trips
+        description: "{{ doc('red_zone_trips') }}"
+      - name: red_zone_tds
+        description: "{{ doc('red_zone_tds') }}"
+      - name: penalties
+        description: "{{ doc('penalties') }}"
+      - name: penalty_yards
+        description: "{{ doc('penalty_yards') }}"
