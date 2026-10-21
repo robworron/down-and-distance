@@ -31,6 +31,7 @@ Ideas for later. Not part of the current step.
 
 - **npm audit: findings in the dev toolchain (2026-10-17, 2026-10-19).**
   - **eslint:** 5 high-severity findings sit under `eslint-config-next` 16.4.1 (`@next/eslint-plugin-next` → `fast-glob` → `micromatch` → `braces`, advisory GHSA-vfj7-8cjw-p6xm, a denial of service via deeply nested glob patterns).
+  - **shadcn CLI (2026-10-21):** the same `braces` advisory reaches 4 more packages through the `shadcn` devDependency (`@shadcn/registry` and `ts-morph` → `fast-glob`), making 9 high findings in all.
   - **drizzle-kit:** a moderate finding through `@esbuild-kit/esm-loader` → `esbuild`, whose development server answers any website's requests. That server is never started.
   - **Exposure:** all are dev-only; `npm audit --omit=dev` finds 0 vulnerabilities, so nothing ships to the site. npm's only fix for the first is downgrading `eslint-config-next` to 14.x, which would break linting.
   - **When to recheck:** when Next publishes a patched `eslint-config-next` and drizzle-kit drops `@esbuild-kit`, at the latest in step 7.3.

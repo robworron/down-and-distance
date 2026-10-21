@@ -541,3 +541,28 @@ Decided on 2026-10-21 from verified data (`docs/build-plan.md`, Data sources), w
   - **Navigation last.** The research pages move under `/research`, with 308 redirects, only after the new pages pass.
   - **Milestones:** the Research Beta (Gate C), the Reliable Weekly Application (Gate D), the Predictive MVP v1.0 (Gate E) and the Portfolio-ready Release (Gate F), each with a checkable acceptance list in the build plan.
 - **Why:** on 2026-10-21 the site had no CI, no caching, a soft 404 and no automation, so production data was two days stale. The player features then inherit these patterns.
+
+## Baseline and reliability
+
+### 2026-10-21 — Baseline checks before any Phase 1 change
+
+Step 1.1: every check run once, before any change, on commit `cfbf291` (`main`, in sync with `origin/main`, clean tree).
+
+- **Environment:** Windows 10 Pro, Docker 29.8.2 with the `postgres:18` container (18.6) on port 15432, Python 3.13.3 via uv 0.13.1, Node 24.15.0 with npm 11.12.1. nflreadpy 0.1.5, pandas 3.0.6, dbt-core 1.12.6 with dbt-postgres 1.11.0.
+- **Results:**
+
+  | Check | Result |
+  | --- | --- |
+  | `uv run pytest` | 46 passed, 0 skipped, 0 failed (3.9 s). The 7 `local_only` upsert tests ran against local Postgres, so the 39 recorded for Phase 0 plus these 7. |
+  | `uv run python -m pipeline dbt build` (local) | PASS=332, WARN=0, ERROR=0, SKIP=0: 4 seeds, 8 tables, 4 views, 316 data tests (12 s). |
+  | `npm ci` | Installed 732 packages from the lockfile. |
+  | `npm run lint` | 0 problems. |
+  | `npm test` (Vitest 4.1.12) | 9 files, 110 tests passed. |
+  | `npx tsc --noEmit` | 0 errors. |
+  | `npm run build` (Next.js 16.4.1, against local Postgres) | Compiled; 9 static pages generated. `/` and `/_not-found` static; `/explorer`, `/leaderboards`, `/teams`, `/teams/[team]` and `/this-week` partial prerenders. |
+
+- **Failures: none,** so no fix step and no new parking-lot entry are needed before 1.2.
+- **Environmental, not application issues:**
+  - Docker Desktop wasn't running at the start of the session; it was started and the existing `dnd-postgres` container came up with its data. Every database check needs it.
+  - `npm ci` reports 13 audit findings (4 moderate, 9 high), all from the two dev-only advisories already in the parking lot: `braces` (GHSA-vfj7-8cjw-p6xm) through `eslint-config-next` and the `shadcn` CLI, and `esbuild` (GHSA-67mh-4wv8-2f99) through drizzle-kit. `npm audit --omit=dev` finds 0. Nothing new; the parking-lot entry now names the `shadcn` path too.
+- **Why:** measuring before changing anything means any later failure can be traced to the step that caused it, rather than to something that was already broken.

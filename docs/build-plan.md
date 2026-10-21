@@ -495,7 +495,7 @@ Role:
 
 The site is then safe to change and stays fresh while the player features are built.
 
-- [ ] **1.1 Baseline checks.**
+- [x] **1.1 Baseline checks.**
   - With Docker running:
     - `uv run pytest` (all, including the local-only upsert tests);
     - a local `uv run python -m pipeline dbt build`;
