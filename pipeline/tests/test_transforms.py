@@ -10,6 +10,10 @@ from pipeline.run_dbt import dbt_env
 from pipeline.seasons import parse_seasons
 
 
+def test_ci_red_check():
+    assert False, "deliberate failure for the step 1.3 CI red check"
+
+
 def test_parse_seasons():
     assert parse_seasons("2025") == [2025]
     assert parse_seasons("1999-2001") == [1999, 2000, 2001]
