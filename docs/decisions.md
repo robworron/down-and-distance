@@ -716,3 +716,11 @@ Step 1.4, the rest of the agreed design (`docs/plans/states-and-caching.md` § 1
   - **This week's empty state:** the 2026 games were marked finished in the local `marts.games` only, then rebuilt from raw with `dbt build --select games` (180 unfinished games again).
   - **Touch:** headless Chrome emulating a touch phone (390 px, `hover: none`) shows 186 popover triggers and no tooltips, and a tap opens the Shrunk explanation. The browser pane can't check this while it's hidden.
   - **Regression set:** pytest 52, dbt build PASS=332, ruff clean, lint 0, `tsc` 0, Vitest 125 (11 files), `next build` with the same route table as 1.1 plus `ƒ Proxy`.
+- **Live checks (after `1b053cc`, 2026-10-22):**
+  - **Before the push:** `check:status` against https://down-and-distance-chi.vercel.app failed the 8 team-URL checks (200s instead of 404s and 308s) and passed the other 10.
+  - **After the push:** Vercel deployed it, CI was green ([run 39720264340](https://github.com/robworron/down-and-distance/actions/runs/39720264340)), and `check:status` passed 18 of 18:
+    - `/teams/xyz`, `/teams/XYZ`, `/teams/oak`, `/teams/b-u-f` and `/teams/xyz?from=2020`: 404, inside the site layout with `noindex`;
+    - `/teams/buf`: 200;
+    - `/teams/BUF`: 308 to `/teams/buf`, query string kept;
+    - every other route unaffected.
+  - Each route's title and description are in `<head>` for an HTML-limited bot, as locally.

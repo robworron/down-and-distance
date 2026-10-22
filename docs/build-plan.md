@@ -526,7 +526,7 @@ The site is then safe to change and stays fresh while the player features are bu
   - No production secrets are needed. `next build` stays with Vercel, because after 1.5 it needs the database.
   - Learn: continuous integration, service containers, why CI never holds production credentials.
   - Done when: `main` is green, and a pull request with a type error and one with a failing pytest both turn red. Rob may also make the check required in the branch settings.
-- [ ] **1.4 States and polish.** Built to the agreed design in `docs/plans/states-and-caching.md`. The player pages reuse these patterns.
+- [x] **1.4 States and polish.** Built to the agreed design in `docs/plans/states-and-caching.md`. The player pages reuse these patterns.
   - A real 404 on unknown team codes (live `/teams/xyz` returns 200 today), checked in Proxy before the page renders (a page's own check couldn't set the status: `docs/decisions.md`, 2026-10-22).
   - Error boundaries; empty states; skeleton loading; page titles and descriptions.
   - The small-sample rule; touch-friendly hints.
