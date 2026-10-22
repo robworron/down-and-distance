@@ -634,3 +634,11 @@ Step 1.3 (decisions D2 and D3 of the Phase 1 plan).
   - **`dbt parse` stops short of `dbt build`:** it catches Jinja, YAML and ref errors, not SQL errors. Those still surface in a local `dbt build`, which stays in the regression set.
 - **No required check yet (D3):** making the check required in the branch settings would block direct pushes to `main`; revisit at Gate D.
 - **Why:** every later change is checked the same way on a clean machine, before it's merged, without giving CI anything that could change production.
+- **Checks (2026-10-21):**
+  - **Fresh-checkout rehearsal:** a clean clone of `7051d80` in a scratch folder, with no `.env` or `web/.env.local`, and a throwaway `postgres:18` container standing in for the service. Every command in both jobs passed: ruff clean; pytest 35 passed, 0 skipped (the 7 `local_only` tests ran); 2 seed checks passed; `dbt parse` exit 0; `npm ci`; ESLint 0 problems; `next typegen`; `tsc` 0 errors; Vitest 110 passed. The container was removed afterwards.
+  - **`main` is green:** [run 39715030641](https://github.com/robworron/down-and-distance/actions/runs/39715030641) on `7051d80`, both jobs passed in 49 s, with the same counts as the rehearsal.
+  - **Red checks (with Rob's approval).** Two throwaway draft PRs, closed afterwards with their branches deleted; neither touched `main` or production:
+    - **robworron/down-and-distance#1, `ci-red-typecheck`:** a type error in `web/lib/format.ts`. [Run 39716112518](https://github.com/robworron/down-and-distance/actions/runs/39716112518) was red: `web` failed at "Type-check (tsc)" (`TS2322: Type 'string' is not assignable to type 'number'`), and `python` passed.
+    - **robworron/down-and-distance#2, `ci-red-pytest`:** `assert False` in `pipeline/tests/test_transforms.py`. [Run 39716116394](https://github.com/robworron/down-and-distance/actions/runs/39716116394) was red: `python` failed at "Tests (pytest)" (1 failed, 35 passed), and `web` passed.
+  - **Vercel previews:** Vercel built a preview of each PR. #1's failed on the same type error, a second check that a broken push never deploys; #2's built.
+  - **`ci.yml` references no secret:** `grep -c "secrets\." .github/workflows/ci.yml` gives 0.

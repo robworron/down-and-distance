@@ -517,7 +517,7 @@ The site is then safe to change and stays fresh while the player features are bu
     - Rob confirms the Neon branch;
     - the dump file exists;
     - `create_web_reader.py --check` reports the same access as on 2026-10-19.
-- [ ] **1.3 Pull-request checks.**
+- [x] **1.3 Pull-request checks.**
   - `.github/workflows/ci.yml` runs on pull requests and pushes to `main`:
     - `ruff check` (ruff added to the dev group);
     - `pytest`: the pure tests, plus the local-only tests against a `postgres:18` service container; Neon data checks excluded;
