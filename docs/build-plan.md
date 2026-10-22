@@ -506,7 +506,7 @@ The site is then safe to change and stays fresh while the player features are bu
   - A failure gets its own fix step before 1.2 if it blocks later work, or a parking-lot entry if it doesn't. Unrelated code is never repaired silently.
   - Learn: why you measure before you change anything.
   - Done when: every check has a recorded result, and every failure has a recorded decision.
-- [ ] **1.2 Restore points.**
+- [x] **1.2 Restore points.**
   - **Restore points:**
     - A git tag `foundation` on the commit 1.1 measured, pushed with Rob's approval.
     - Rob creates a Neon branch `foundation`; Claude gives click-by-click steps.

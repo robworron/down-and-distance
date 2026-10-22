@@ -33,3 +33,6 @@ Thumbs.db
 
 # dbt writes an anonymous user id next to profiles.yml
 transform/.user.yml
+
+# Schema backups (pipeline/backup_schema.py)
+backups/

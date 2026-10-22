@@ -571,3 +571,33 @@ Step 1.1: every check run once, before any change, on commit `cfbf291` (`main`, 
   - Docker Desktop wasn't running at the start of the session; it was started and the existing `dnd-postgres` container came up with its data. Every database check needs it.
   - `npm ci` reports 13 audit findings (4 moderate, 9 high), all from the two dev-only advisories already in the parking lot: `braces` (GHSA-vfj7-8cjw-p6xm) through `eslint-config-next` and the `shadcn` CLI, and `esbuild` (GHSA-67mh-4wv8-2f99) through drizzle-kit. `npm audit --omit=dev` finds 0. Nothing new; the parking-lot entry now names the `shadcn` path too.
 - **Why:** measuring before changing anything means any later failure can be traced to the step that caused it, rather than to something that was already broken.
+
+### 2026-10-21 — Restore points
+
+Step 1.2 (decision D7 of the Phase 1 plan): three restore points from before any Phase 1 change, each checked. Nothing in production was changed except the new Neon branch, which Rob created.
+
+- **Git tag `foundation`:** an annotated tag on `cfbf291`, the commit 1.1 measured, pushed with Rob's approval. `git ls-remote --tags origin` shows `refs/tags/foundation` (tag object `4c49615`) and `refs/tags/foundation^{}` = `cfbf2914b715fa87f24056e4b67cf0808310ce1a`.
+- **Neon branch `foundation`:** created by Rob from the production branch's head. `pipeline/sql/checks/restore_point_counts.sql`, run by Rob in the Neon SQL Editor on both branches, gave identical results:
+
+  | Table | Rows |
+  | --- | --- |
+  | `marts.games` | 7,548 |
+  | `marts.mart_league_splits` | 2,458 |
+  | `marts.team_games` | 15,096 |
+  | `raw.game_weather` | 5,956 |
+  | `raw.pbp` | 500,466 |
+  | `raw.schedules` | 7,548, last loaded 2026-10-19 23:08:24 UTC |
+
+  Neon usage since 2026-10-15, read by Rob: 248.82 MB storage, 987 kB history, 1.77 CU-hours of compute, 100.62 MB network transfer. The restore window itself wasn't read; the branch, not point-in-time restore, is the fallback. The branch shares storage with production until production diverges; its share grows by up to about the size of this snapshot and is counted in 2.1.
+- **Schema dump:** `uv run python -m pipeline.backup_schema --verify` (new; a read-only Neon connection, announced first) wrote `backups/neon-schema-2026-10-21-2244.dump` (154 KB, pg_dump 18.6, custom format) and a plain-SQL copy (124 KB), gitignored. The dump has 475 entries: raw 4 tables, staging 3 tables and 4 views, marts 9 tables, plus 13 grants and default privileges for `web_reader`. Its CREATE TABLE, VIEW and INDEX statements are identical to the local database's. Neither file contains a password or host.
+  - **Restore check:** restored with `--no-owner --no-privileges --exit-on-error` into a throwaway local database, `restore_check`: no errors, and the same tables and views per schema as the dump's contents. The database was dropped afterwards. A deliberately truncated dump fails the check with a clear message and leaves nothing behind.
+  - **Design:** the connection string reaches pg_dump only as libpq environment variables passed to `docker exec` by name, never on a command line; error messages are redacted. Custom format allows restoring part of a dump; the plain copy can be read and diffed. The module is reusable, because requirements §0 asks for a schema export before every later production schema change.
+- **`create_web_reader --check`** (read-only, announced): marts 9 of 9 readable, staging 0 of 7, raw 0 of 4, writes refused (`ReadOnlySqlTransaction`), sessions read-only by default. These are the same access rules as on 2026-10-19; marts has 9 tables now, not 7, because two were added since.
+- **Tests:** pytest 51 passed (the 46 of 1.1 plus 5 unit tests for the backup module). ruff 0.17.1 (`--isolated`) is clean on the new files.
+
+**Recovery procedures:**
+- **Code: check out the tag.** `git checkout foundation` for a look (a detached HEAD); `git switch -c restore-foundation foundation` to work from it. Putting `main` back at the tag is a history rewrite: Rob only. The usual backout is still reverting one step's commit.
+- **Database: restore production from `foundation`.** Destructive (it replaces production's data and schema), so Rob only, after a fresh `backup_schema` dump of the state being replaced. In the Neon console: Branches → production branch → *Restore* (or *Reset from parent* where `foundation` is the source), choosing the `foundation` branch; Neon keeps a backup branch of the overwritten state. Vercel needs no change, because the connection string's endpoint stays the same. Then run `create_web_reader --check`.
+- **Schema only:** `pg_restore` the dump into a new, empty database, never over production. `--restore-check FILE` is the rehearsal.
+- **Verify either restore** with `restore_point_counts.sql`: every row must equal the table above (or, after a later reload, the current production counts).
+- **Why:** a restore point is only worth having if returning to it has been shown to work, and later steps change production (the nightly job in 1.6). Requirements §7, Phase 1: "a rollback path is documented and no destructive production operation is needed".
