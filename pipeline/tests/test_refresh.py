@@ -10,8 +10,9 @@ SECRET = "not-a-real-secret-0123456789"
 
 
 class Answer:
-    def __init__(self, status_code: int):
+    def __init__(self, status_code: int, text: str = ""):
         self.status_code = status_code
+        self.text = text
 
 
 def script(*answers):
@@ -108,3 +109,67 @@ def test_main_needs_a_site(monkeypatch):
     with pytest.raises(SystemExit) as exit_info:
         r.main([])
     assert exit_info.value.code == 2  # argparse's usage error
+
+
+STAMP = "2026-10-22T09:41:07Z"
+
+
+def page(stamp: str | None) -> Answer:
+    """A page whose footer shows `stamp` (None: no stamp at all)."""
+    footer = f'<span><time dateTime="{stamp}">Data updated Thu Oct 22, 5:41 am ET</time></span>' if stamp else ""
+    return Answer(200, f"<html><body><main>...</main><footer>{footer}</footer></body></html>")
+
+
+def pages(*answers):
+    """A fake GET that gives each answer in turn, then repeats the last."""
+    calls = []
+
+    def get(url, **kwargs):
+        calls.append(url)
+        return answers[min(len(calls), len(answers)) - 1]
+
+    get.calls = calls
+    return get
+
+
+def test_expect_stamp_passes_when_every_page_shows_it():
+    get = pages(page(STAMP))
+    code = r.refresh(SITE, SECRET, post=script(200), get=get, sleep=no_sleep, expected_stamp=lambda: STAMP)
+    assert code == r.OK
+    assert len(get.calls) == 2 * len(r.PAGES)  # the page checks, then one stamp round
+    assert no_sleep.waits == []
+
+
+def test_expect_stamp_waits_for_pages_still_showing_the_old_stamp():
+    # The 6 page checks, one round with the old stamp everywhere, then the new one.
+    old = [page("2026-10-21T09:41:00Z")] * (2 * len(r.PAGES))
+    get = pages(*old, page(STAMP))
+    code = r.refresh(SITE, SECRET, post=script(200), get=get, sleep=no_sleep, expected_stamp=lambda: STAMP)
+    assert code == r.OK
+    assert no_sleep.waits == [r.STAMP_RETRY_SECONDS]
+
+
+def test_expect_stamp_fails_with_exit_2_after_two_minutes(capsys):
+    get = pages(page("2026-10-21T09:41:00Z"))
+    code = r.refresh(SITE, SECRET, post=script(200), get=get, sleep=no_sleep, expected_stamp=lambda: STAMP)
+    assert code == r.PAGE_CHECK_FAILED
+    assert sum(no_sleep.waits) == r.STAMP_WAIT_SECONDS
+    assert "expected 2026-10-22T09:41:07Z" in capsys.readouterr().out
+
+
+def test_expect_stamp_fails_when_a_page_has_no_stamp():
+    get = pages(page(None))
+    code = r.refresh(SITE, SECRET, post=script(200), get=get, sleep=no_sleep, expected_stamp=lambda: STAMP)
+    assert code == r.PAGE_CHECK_FAILED
+
+
+def test_expect_stamp_fails_when_nothing_is_published():
+    code = r.refresh(SITE, SECRET, post=script(200), get=pages(page(STAMP)), sleep=no_sleep, expected_stamp=lambda: None)
+    assert code == r.PAGE_CHECK_FAILED
+
+
+def test_a_refused_refresh_never_checks_the_stamp():
+    asked = []
+    code = r.refresh(SITE, SECRET, post=script(401), get=pages(page(STAMP)), sleep=no_sleep, expected_stamp=lambda: asked.append(1))
+    assert code == r.REFRESH_FAILED
+    assert asked == []

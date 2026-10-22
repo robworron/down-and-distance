@@ -8,6 +8,7 @@ import "server-only";
 import { and, asc, between, desc, eq, inArray, max, sql, type AnyColumn } from "drizzle-orm";
 
 import {
+  dataFreshnessInMarts as dataFreshness,
   dimStadiumsInMarts as dimStadiums,
   dimTeamsInMarts as dimTeams,
   gamesInMarts as games,
@@ -578,4 +579,21 @@ export async function getSeasonLeagueSums(keys: string[], from: number, to: numb
       ),
     )
     .groupBy(leagueSplits.season, leagueSplits.situationKey, leagueSplits.situationValue);
+}
+
+/**
+ * When the published data was last updated: the newest successful schedules
+ * load (marts.data_freshness), as UTC ISO 8601 to the second, e.g.
+ * "2026-10-21T09:41:07Z". Null before the first recorded load. Formatted in
+ * SQL so `pipeline refresh --expect-stamp` can compare it character for
+ * character with the page.
+ */
+export async function getDataUpdatedAt(): Promise<string | null> {
+  "use cache";
+  martsCache();
+  const [row] = await db
+    .select({ at: sql<string>`to_char(${dataFreshness.lastSuccessAt} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')` })
+    .from(dataFreshness)
+    .where(eq(dataFreshness.tableName, "schedules"));
+  return row?.at ?? null;
 }

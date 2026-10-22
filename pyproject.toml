@@ -27,7 +27,10 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["pipeline/tests"]
 pythonpath = ["."]
-markers = ["local_only: creates and drops tables, so runs only against the local database"]
+markers = [
+    "local_only: creates and drops tables, so runs only against the local database",
+    "advisory: upstream changed, revisit; reported but doesn't block the nightly publish",
+]
 
 [tool.ruff]
 # Notebooks keep their committed outputs in step with the code that made them,

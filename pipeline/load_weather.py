@@ -47,6 +47,16 @@ class RateLimited(Exception):
     """Open-Meteo answered 429: stop now, the cache lets a rerun resume."""
 
 
+class WeatherIncomplete(Exception):
+    """A rate limit left seasons unloaded. The finished ones were upserted
+    first; `result` holds their counts, so the run records keep them."""
+
+    def __init__(self, missing: list[int], result: UpsertResult | None):
+        super().__init__(f"Open-Meteo rate limit: no weather loaded for season(s) {missing}; rerun later to resume")
+        self.missing = missing
+        self.result = result
+
+
 def kickoff_utc(gameday: pd.Series, gametime: pd.Series) -> pd.Series:
     """nflverse kickoffs are US Eastern local time; convert them to UTC.
 
@@ -171,8 +181,15 @@ def game_weather(games: pd.DataFrame, data: dict) -> pd.DataFrame:
 
 
 def load(seasons: list[int]) -> UpsertResult | None:
+    """Fetch and upsert weather for the seasons' finished open-air games.
+
+    A rate limit stops the fetching; the seasons already fetched are still
+    upserted, then WeatherIncomplete is raised, so the run reports a failure
+    rather than a quiet partial load.
+    """
     games = eligible_games(seasons)
     frames, done_seasons = [], []
+    rate_limited = False
 
     try:
         for season, season_games in games.groupby("season"):
@@ -184,9 +201,13 @@ def load(seasons: list[int]) -> UpsertResult | None:
             done_seasons.append(int(season))
             log.info("weather fetched for %s (%d games)", season, len(season_games))
     except RateLimited:
+        rate_limited = True
         log.warning("Open-Meteo rate limit hit; loading the %d finished season(s). Rerun later to resume.", len(done_seasons))
+    missing = sorted({int(s) for s in games["season"].unique()} - set(done_seasons))
 
     if not done_seasons:
+        if rate_limited:
+            raise WeatherIncomplete(missing, None)
         log.warning("no complete seasons of weather to load")
         return None
 
@@ -195,7 +216,10 @@ def load(seasons: list[int]) -> UpsertResult | None:
     # A missing kickoff-hour reading means the archive wasn't ready: leave the
     # game out so a later run fills it in.
     weather = weather[weather["temperature_f"].notna()]
-    return upsert_dataframe(weather, "game_weather", ["game_id"], scope_col="season", scope_values=done_seasons)
+    result = upsert_dataframe(weather, "game_weather", ["game_id"], scope_col="season", scope_values=done_seasons)
+    if rate_limited:
+        raise WeatherIncomplete(missing, result)
+    return result
 
 
 def main() -> None:

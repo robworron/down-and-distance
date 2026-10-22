@@ -82,6 +82,10 @@ def test_open_air_list_matches_seed():
     assert in_sql == in_seed, f"only in the SQL: {sorted(in_sql - in_seed)}; only in the CSV: {sorted(in_seed - in_sql)}"
 
 
+# Advisory: a failure means nflverse changed something upstream (revisit the
+# test or the correction), not that the data is bad; the nightly publish
+# doesn't wait for it (decisions.md, D4).
+@pytest.mark.advisory
 def test_mislabelled_open_air_game_has_weather(query):
     """nflverse lists the 2026 Melbourne Cricket Ground game as 'dome'; the MCG has no roof."""
     row = query(
@@ -95,6 +99,7 @@ def test_mislabelled_open_air_game_has_weather(query):
     assert pd.notna(row.iloc[0]["temperature_f"]), "the MCG game has no weather"
 
 
+@pytest.mark.advisory  # as above: upstream changed, revisit
 def test_schedule_corrections_still_needed(query):
     """Each correction must still match what nflverse publishes.
 

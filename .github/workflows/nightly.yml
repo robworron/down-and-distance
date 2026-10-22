@@ -1,0 +1,186 @@
+# The nightly refresh (step 1.6): load the current season, publish the marts
+# only if the same build passed every check, then refresh the site.
+#
+#   ingest  -> publish (raw gate, candidate build, real build, all under a
+#              lock on raw) -> refresh the site and check its footer stamp
+#
+# Runs at 09:30 UTC every day (5:30 am EDT / 4:30 am EST: after Monday night
+# games and nflverse's overnight builds), and on demand from the Actions tab.
+#
+# Each run uses one GitHub Environment, `production` or `test`, and that
+# environment's own DATABASE_URL secret: the Neon owner role on the direct
+# (unpooled) host of the production branch, or of the `nightly-test` branch.
+# There is no fallback between them, so a missing test secret fails the run
+# rather than reaching production. Only `production` holds REVALIDATE_SECRET,
+# and it accepts runs from main only. Deliberate failures (simulate_failure)
+# are refused on production.
+#
+# Exit codes are kept per stage and the last step fails the run if any stage
+# failed, so a red run always means something needs looking at.
+
+name: Nightly refresh
+
+on:
+  schedule:
+    - cron: "30 9 * * *"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Which database to refresh
+        type: choice
+        options: [production, test]
+        default: production
+      simulate_failure:
+        description: Fail one stage on purpose (test target only)
+        type: choice
+        options: [none, weather, schedules, dbt_test]
+        default: none
+
+permissions:
+  contents: read
+
+# One run per target at a time; a new run waits rather than cancelling one
+# that may be holding the lock on raw.
+concurrency:
+  group: nightly-${{ inputs.target || 'production' }}
+  cancel-in-progress: false
+
+jobs:
+  nightly:
+    # Scheduled runs need the repository variable NIGHTLY_SCHEDULE = on (set
+    # once the test-target rehearsals passed); removing it is the off switch.
+    # Manual runs always run.
+    if: github.event_name == 'workflow_dispatch' || vars.NIGHTLY_SCHEDULE == 'on'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    # Scheduled runs have no inputs, so they take the defaults.
+    environment: ${{ inputs.target || 'production' }}
+
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      TARGET: ${{ inputs.target || 'production' }}
+      SIMULATE: ${{ inputs.simulate_failure || 'none' }}
+
+    steps:
+      - name: Refuse simulated failures on production
+        if: env.TARGET == 'production' && env.SIMULATE != 'none'
+        run: |
+          echo "::error::simulate_failure=$SIMULATE is allowed only with target=test"
+          exit 1
+
+      - name: Check the environment's secret is set
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::the $TARGET environment has no DATABASE_URL secret"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+
+      - name: Install Python and dependencies
+        run: uv sync --locked
+
+      # Open-Meteo answers are cached on disk; restoring them means a run only
+      # fetches games it hasn't seen. Saved again at the end, even on failure.
+      - name: Restore the weather cache
+        uses: actions/cache/restore@v6.1.0
+        with:
+          path: pipeline/.cache/open-meteo
+          key: open-meteo-${{ github.run_id }}
+          restore-keys: open-meteo-
+
+      # Exit 0 all loaded; 1 an optional table failed; 2 schedules failed (or
+      # the run records couldn't be written), so there's nothing to publish.
+      - name: Ingest
+        id: ingest
+        run: |
+          flag=""
+          case "$SIMULATE" in weather|schedules) flag="--simulate-failure $SIMULATE" ;; esac
+          set +e
+          uv run python -m pipeline ingest --trigger "${{ github.event_name }}" --target "$TARGET" $flag
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+
+      # Exit 0 published; 1 candidate failed; 2 publish stage failed;
+      # 3 equivalence check failed (published); 4 raw gate failed; 5 no lock.
+      - name: Publish
+        id: publish
+        if: steps.ingest.outputs.code != '2'
+        run: |
+          flag=""
+          if [ "$SIMULATE" = "dbt_test" ]; then flag="--simulate-test-failure"; fi
+          set +e
+          uv run python -m pipeline publish --target "$TARGET" $flag
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Publish decision
+        id: decision
+        if: always()
+        run: |
+          ingest="${{ steps.ingest.outputs.code }}"
+          code="${{ steps.publish.outputs.code }}"
+          case "$code" in
+            0) published=true;  why="published" ;;
+            3) published=true;  why="published, but an equivalence check failed: investigate" ;;
+            1) published=false; why="the candidate build failed: marts untouched" ;;
+            2) published=false; why="the publish stage failed: some marts replaced, no refresh" ;;
+            4) published=false; why="the raw gate failed: marts untouched" ;;
+            5) published=false; why="raw couldn't be locked: marts untouched" ;;
+            "") published=false; why="not run (ingest exit ${ingest:-none})" ;;
+            *) published=false; why="unexpected exit $code" ;;
+          esac
+          echo "published=$published" >> "$GITHUB_OUTPUT"
+          echo "Publish: $why" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # Production only, and only when the marts were published.
+      - name: Refresh the site
+        id: refresh
+        if: env.TARGET == 'production' && steps.decision.outputs.published == 'true'
+        env:
+          REVALIDATE_SECRET: ${{ secrets.REVALIDATE_SECRET }}
+          SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          set +e
+          uv run python -m pipeline refresh --expect-stamp
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+
+      # "Upstream changed, revisit" checks: reported, never blocking.
+      - name: Advisory raw checks
+        if: always() && steps.ingest.outputs.code != ''
+        run: |
+          set +e
+          uv run pytest pipeline/tests/test_raw_data.py -m advisory -q -p no:cacheprovider
+          if [ $? -ne 0 ]; then echo "::warning::an advisory raw check failed: nflverse changed something; revisit the check or its correction"; fi
+          exit 0
+
+      - name: Save the weather cache
+        if: always()
+        uses: actions/cache/save@v6.1.0
+        with:
+          path: pipeline/.cache/open-meteo
+          key: open-meteo-${{ github.run_id }}
+
+      - name: Result
+        if: always()
+        run: |
+          ingest="${{ steps.ingest.outputs.code }}"
+          publish="${{ steps.publish.outputs.code }}"
+          refresh="${{ steps.refresh.outputs.code }}"
+          {
+            echo "| Stage | Exit |"
+            echo "| --- | --- |"
+            echo "| ingest | ${ingest:-not run} |"
+            echo "| publish | ${publish:-not run} |"
+            echo "| refresh | ${refresh:-not run} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          failed=0
+          [ "$ingest" = "0" ] || failed=1
+          [ "$publish" = "0" ] || failed=1
+          if [ "$TARGET" = "production" ] && [ "$refresh" != "0" ]; then failed=1; fi
+          if [ $failed -ne 0 ]; then echo "::error::a stage failed: see the table in the run summary"; exit 1; fi
+          echo "every stage succeeded"

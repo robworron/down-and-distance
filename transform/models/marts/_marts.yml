@@ -939,3 +939,31 @@ models:
         description: "{{ doc('penalties') }}"
       - name: penalty_yards
         description: "{{ doc('penalty_yards') }}"
+
+  - name: data_freshness
+    description: "How fresh each source is (step 1.6): one row per raw table the pipeline loads, from raw.source_loads. Its newest schedules success is the site's \"Data updated\" stamp. Built after every other mart (depends_on), so a failed build never advances it."
+    columns:
+      - name: table_name
+        description: The raw table, e.g. schedules or game_weather.
+        data_tests: [unique, not_null]
+      - name: last_success_at
+        description: When the table's most recent successful load finished. NULL if it has never loaded successfully.
+      - name: last_success_seasons
+        description: The seasons that load covered (NULL for teams, which isn't seasonal).
+      - name: rows_inserted
+        description: Rows that load inserted.
+      - name: rows_updated
+        description: Rows that load changed.
+      - name: rows_unchanged
+        description: Rows that load found already up to date.
+      - name: rows_deleted
+        description: Rows that load deleted because the source no longer had them (within the loaded seasons).
+      - name: last_attempt_at
+        description: When the table's most recent load, successful or not, finished.
+      - name: last_attempt_status
+        description: "success or failed. failed, with an older last_success_at, means the source is behind."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [success, failed]

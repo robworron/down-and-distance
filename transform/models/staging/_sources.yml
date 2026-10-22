@@ -30,3 +30,15 @@ sources:
             description: Key, with play_id.
           - name: play_id
             description: Unique only within a game.
+      - name: pipeline_runs
+        description: One row per run of `pipeline ingest`, written by pipeline/runs.py (step 1.6). See docs/data-model.md.
+        columns:
+          - name: run_id
+            description: Primary key (a UUID made by the pipeline).
+      - name: source_loads
+        description: One row per table each run tried to load, with its status, seasons, row counts and a sanitized error.
+        columns:
+          - name: run_id
+            description: Key, with table_name; the run in pipeline_runs.
+          - name: table_name
+            description: schedules, teams, game_weather or pbp.

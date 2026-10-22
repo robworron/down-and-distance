@@ -13,12 +13,14 @@ import { Button } from "@/components/ui/button";
  *
  * Wrap it outside the section's <Suspense>, so it catches what the section
  * throws while streaming. `contained` puts the message in the content column,
- * for a section that spans the page's full width (the team page).
+ * for a section that spans the page's full width (the team page); `quiet` is
+ * one muted line with no button, for a small detail like the footer's stamp.
  */
 function SectionErrorFallback(
-  { what = "this section", contained = false }: { what?: string; contained?: boolean },
+  { what = "this section", contained = false, quiet = false }: { what?: string; contained?: boolean; quiet?: boolean },
   { retry }: ErrorInfo,
 ) {
+  if (quiet) return <span role="status">Couldn&apos;t load {what}.</span>;
   const message = (
     <div role="alert" className="my-4 rounded-lg border bg-card p-4 text-sm">
       <p className="font-medium text-foreground">Couldn&apos;t load {what}.</p>

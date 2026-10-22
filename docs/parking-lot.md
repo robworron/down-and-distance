@@ -29,6 +29,7 @@ Ideas for later. Not part of the current step.
 
 - **Team names on the 404 page (2026-10-22).** The not-found page lists the 32 team codes from `web/lib/team-codes.json`, not names: it's part of every route, so an uncached query there made even the home page query the database on each visit. Step 1.5 cached `getTeams()` (2026-10-22), so the names (and badges) can now come back without that cost: check that `/` stays `○` in the route table.
 - **Team links: prefetch the whole page (2026-10-22).** Team links prefetch only the route's App Shell (Partial Prefetching), so a click waits for the season-range part. If navigation feels slow, `prefetch={true}` on team links fetches the rest ahead, at the cost of one request per visible link.
+- **An atomic switch across marts (2026-10-22).** `pipeline publish` replaces the marts one at a time over about 40 s, so a page rendered in that window can mix old and new marts (both tested). A true switch would build into a new schema and rename schemas, re-granting `web_reader`, in one transaction each night. Disproportionate for now; revisit if a mixed page is ever seen to matter.
 
 ## Tooling and operations
 

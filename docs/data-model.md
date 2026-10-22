@@ -13,7 +13,7 @@ How the database is laid out, table by table. Three schemas, one per layer:
 ### Conventions
 
 - **Source as-is.** Column names, values and rows are kept exactly as the source publishes them. Renaming, type fixes and team-code standardising happen in staging.
-- **`_loaded_at`.** Every raw table has a `_loaded_at timestamptz` column: when the row was inserted or last changed. A reload that finds a row unchanged leaves it, and its `_loaded_at`, untouched.
+- **`_loaded_at`.** Every raw table that copies a source has a `_loaded_at timestamptz` column (the run records have their own times instead): when the row was inserted or last changed. A reload that finds a row unchanged leaves it, and its `_loaded_at`, untouched.
 - **Primary key on every table.** Loads upsert on it: new keys are inserted, changed rows are updated in place, and the table is never dropped (so grants survive).
 - **Stale rows are removed per season.** Loading a season also deletes that season's rows whose key is no longer in the source (e.g. a cancelled game, or a play nflverse deleted). Other seasons are untouched, and a season that arrives empty is refused rather than wiped.
 - **Integers stay integers.** Columns that are integers at the source are stored as integers even when they contain nulls.
@@ -31,6 +31,21 @@ uv run python -m pipeline ingest --only weather,pbp    # a subset of tables
 ```
 
 Each table logs inserted / updated / unchanged / deleted counts. A second run straight after the first logs no changes. On the season in progress, a run a few hours later can update a handful of upcoming games, because betting lines move.
+
+**Each table loads on its own (step 1.6).** A failure is logged and recorded, and the next table still loads. Every run writes its run records (below). Exit codes:
+- **0:** every table loaded.
+- **1:** an optional table (teams, weather, pbp) failed.
+- **2:** schedules failed (every mart is built from it, so there's nothing to publish), or the run records couldn't be written.
+
+A weather rate limit that leaves seasons unloaded is a failure: the finished seasons are still upserted, and their counts recorded. `--simulate-failure TABLE` fails one table on purpose; it runs only against the local database or with `--target test`.
+
+**Publishing (step 1.6).** Production builds go through `uv run python -m pipeline publish`, not a plain `dbt build`. Under a SHARE lock on every raw table, it runs:
+1. the raw data checks, minus the two advisory ones;
+2. a full candidate build into `staging_candidate` and `marts_candidate`;
+3. only if both were clean, the real build;
+4. checks that raw didn't change and that every mart has the candidate's row count.
+
+`decisions.md` (2026-10-22, "Nightly refresh and run records") has the guarantees and the exit codes.
 
 ### Checks
 
@@ -180,6 +195,35 @@ Play-by-play from 2016, trimmed to 60 of nflverse's 372 columns (chosen and just
 **Indexes.** The primary key `(game_id, play_id)` is a B-tree sorted by `game_id` first, so it also serves lookups by `game_id` alone (`EXPLAIN` shows an index scan on `pbp_pkey`). `pbp_season_posteam_idx` on `(season, posteam)` serves per-team queries.
 
 **Size (2026-10-16, local):** 498,285 plays in 2,841 games, 2016 to 2026 week 6. 197 MB in total: 159 MB table, 33 MB primary key, 5 MB `(season, posteam)` index. Every `game_id` exists in `raw.schedules`.
+
+### Run records (step 1.6)
+
+Written by `pipeline/runs.py` (`pipeline/sql/run_records.sql`, created by the first ingest; rerunnable). Unlike the source copies, they have no `_loaded_at`: their own times say when each row was written. They're never written while `pipeline publish` holds its lock.
+
+**`raw.pipeline_runs`**: one row per `pipeline ingest` run.
+
+| Column | Type | Meaning |
+| --- | --- | --- |
+| `run_id` | uuid | Primary key, made in Python |
+| `trigger` | text | `schedule`, `workflow_dispatch` or `local` |
+| `target` | text | `production`, `test` or `local` |
+| `started_at`, `finished_at` | timestamptz | `finished_at` is NULL while running |
+| `status` | text | `running`, `success`, `partial` (an optional table failed), `failed` (schedules failed) or `abandoned` (still running 3 hours after it started: the next run marks it) |
+| `git_sha` | text | The commit the job ran |
+
+**`raw.source_loads`**: one row per table a run tried to load; primary key (`run_id`, `table_name`), and `run_id` references `pipeline_runs`.
+
+| Column | Type | Meaning |
+| --- | --- | --- |
+| `table_name` | text | `schedules`, `teams`, `game_weather` or `pbp` |
+| `seasons` | int[] | The seasons asked for; NULL for teams |
+| `status` | text | `success` or `failed` |
+| `rows_inserted`, `rows_updated`, `rows_unchanged`, `rows_deleted` | int | The upsert's counts; NULL when nothing reached the upsert |
+| `error` | text | The exception, with URLs and password, token or secret values removed, at most 500 characters |
+| `nflreadpy_version` | text | The source library's version |
+| `started_at`, `finished_at` | timestamptz | |
+
+`pipeline/sql/checks/latest_run_loads.sql` shows what the latest run did.
 
 ## Staging layer
 
@@ -421,6 +465,17 @@ The whole league per season, season type and situation value: `mart_team_splits`
 - `splits_2020_home_record`: pins the reconciliation: home 253 games 127–125–1, neutral 6 at 3–3, SF neutral 0–3.
 - `mart_splits_counts_consistent`, on both marts: wins + losses + ties = games; covers and pushes fit inside `ats_games`; overs + unders + pushes = `ou_games`; `stats_games` ≤ games; the play-by-play sums are NULL exactly when `stats_games` is 0; and games × `margin_sq` ≥ (summed margin)², the same for totals, because a variance can't be negative (in `bigint`: the product reaches about 435 million).
 - Adding a game to one league row fails the first two; lowering 2019's home wins fails the dip test.
+
+### data_freshness (step 1.6)
+
+One row per raw table the pipeline loads, from `raw.source_loads`: its last successful load (`last_success_at`, `last_success_seasons`, the four row counts) and its last attempt (`last_attempt_at`, `last_attempt_status`). A table whose last attempt `failed`, with an older `last_success_at`, is behind.
+
+- **Built last.** It's declared to depend on every other mart (`-- depends_on:`), so dbt builds it last and skips it if anything upstream, or any test, failed. A failed build never moves the stamp.
+- **The site's stamp.** The footer shows "Data updated …": the schedules row's `last_success_at`, in US Eastern time, through a cached query (`getDataUpdatedAt`).
+- **The refresh's check.** `pipeline refresh --expect-stamp` checks that every main page shows that value.
+- **Tests:** `table_name` unique and not null; `last_attempt_status` is `success` or `failed`.
+
+**Candidate schemas.** `pipeline publish` builds a full copy in `staging_candidate` and `marts_candidate` (about 18 MB on Neon) before the real build, and leaves it there until the next run. `web_reader` has no access: its grants and default privileges are on `marts` only (`pipeline/sql/checks/candidate_schemas_unreadable.sql`).
 
 ## Documentation
 

@@ -29,3 +29,25 @@ export function formatShare(w: number): string {
 export function formatCount(n: number): string {
   return Math.round(n).toLocaleString("en-US");
 }
+
+const EASTERN = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  hour12: true,
+});
+
+/**
+ * "2026-10-21T09:41:07Z" -> "Wed Oct 21, 5:41 am ET": a UTC instant in US
+ * Eastern time, daylight saving time included (the zone name, never a fixed
+ * offset). Null for an unreadable value.
+ */
+export function formatEastern(iso: string): string | null {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  const part = Object.fromEntries(EASTERN.formatToParts(date).map((p) => [p.type, p.value]));
+  return `${part.weekday} ${part.month} ${part.day}, ${part.hour}:${part.minute} ${part.dayPeriod.toLowerCase()} ET`;
+}

@@ -822,3 +822,87 @@ Step 1.5, to `docs/plans/states-and-caching.md` § 1.5 (decision D5 of the Phase
   - that every instance drops its old entries at the moment of the refresh: Next documents `revalidateTag` as per-instance unless the platform coordinates. V5 found no old entries after the POST, but that's evidence, not a guarantee;
   - that a page's shell and its streamed sections always come from the same load: between a dbt build and its refresh they don't (seen in V5). Step 1.6's publish-then-refresh keeps that window short, and both are tested data.
 - **Why:** the marts change once a night, so caching every query with one tag lets the nightly job refresh the whole site with one authenticated call. The static pages no longer query the database at all, and the 24-hour safety net bounds how stale a missed refresh can leave them.
+
+### 2026-10-22 — Nightly refresh and run records
+
+Step 1.6, decisions D4 and D6 of the Phase 1 plan, with the plan's candidate build (refinement 1).
+
+- **The lock, tested before relying on it.** Rob asked whether a SHARE lock held by one transaction really freezes raw for dbt's separate connections, which don't share its snapshot. A throwaway database, `lock_check`, created and dropped by the script, answered it: **18 of 18 checks passed**.
+  - **Readers aren't blocked:** a SELECT on another connection returned at once.
+  - **Every kind of write waits:** INSERT, UPDATE, DELETE, TRUNCATE, ALTER TABLE ADD COLUMN and the upsert's own `INSERT … ON CONFLICT` all waited until a 2 s `lock_timeout`.
+  - **Every connection sees the same rows:** 5 reads on 5 new connections, spread over 2 s while a writer waited, saw one identical fingerprint. dbt-style `CREATE VIEW`, `CREATE TABLE AS` and renames ran normally while raw was locked.
+  - **The writer resumes:** it committed only after the holder committed.
+  - **A write in progress delays the lock:** `LOCK` waited for an uncommitted INSERT (`lock_timeout` turns this into publish's exit 5). Once the INSERT committed, its row was in F0.
+  - **A dead connection takes its lock with it:** killing the holder's connection released the lock at once, the waiting writer went through, and the fingerprint showed the change (F1 ≠ F0).
+  - **Conclusion:** each dbt statement runs at READ COMMITTED with its own snapshot. Since no write to raw can commit while the lock holds, every statement on every connection sees the same raw rows, without a shared snapshot. This holds only while the lock does:
+    - the lock must be held on Postgres's own connection (Neon's direct host, not the pooler);
+    - the holder must never write to raw itself, so run records are written by `ingest` before `publish` starts;
+    - a lost connection releases it, and F1 ≠ F0 then shows it after the fact.
+- **Changed:**
+  - **Run records** (`pipeline/sql/run_records.sql`, `pipeline/runs.py`): `raw.pipeline_runs` and `raw.source_loads`, created by every ingest with `IF NOT EXISTS`.
+    - A run still `running` 3 hours after it started is marked `abandoned` by the next run.
+    - Errors pass through `sanitize_error`: URLs and `password` / `token` / `secret` / `authorization` values are removed, and the text is capped at 500 characters.
+    - They're written on their own autocommit connection.
+  - **`pipeline ingest`:**
+    - each table loads on its own, and its outcome is recorded;
+    - `REQUIRED = {"schedules"}`;
+    - exit 0 / 1 (an optional table failed) / 2 (schedules failed, or the run records couldn't be written);
+    - `--simulate-failure TABLE` and `--target`, refusing a simulation unless the target is the local database or `test`;
+    - `--trigger`.
+  - **Weather (D6):** a rate limit that leaves seasons unloaded raises `WeatherIncomplete` after the finished seasons are upserted, so their counts are still recorded.
+  - **The raw gate (D4):** `test_mislabelled_open_air_game_has_weather` and `test_schedule_corrections_still_needed` are `@pytest.mark.advisory` ("upstream changed, revisit"); the other 15 data checks block a publish.
+  - **dbt:**
+    - `generate_schema_name` appends `var('schema_suffix', '')`; with no var it behaves exactly as before;
+    - `tests/simulated_failure.sql` fails only with `simulate_test_failure: true`;
+    - the two run tables are sources;
+    - `marts.data_freshness` is built last (`-- depends_on:` every mart), so it's skipped if anything upstream fails;
+    - a local build is now PASS=338 (332 + the new model, its 4 tests and the switchable test).
+  - **`pipeline publish`** (`pipeline/publish.py`), in one transaction:
+    1. lock every raw table, read from the catalogue (`lock_timeout` 5 min), and record F0;
+    2. the raw gate, in its own process;
+    3. a snapshot of the marts' OIDs;
+    4. the candidate `dbt build --vars '{schema_suffix: _candidate}'`, in its own process;
+    5. only if both were clean, the real `dbt build`;
+    6. F1 = F0, and every mart's row count equal to the candidate's (`--compare`: every value, floats within a relative 1e-9);
+    7. commit.
+
+    On a gate or candidate failure it confirms the OIDs are unchanged and logs "marts untouched (N tables)". Exit codes 0–5 as in the plan.
+  - **Site:**
+    - `getDataUpdatedAt()` (cached, `marts` tag) returns the schedules row's `last_success_at` as UTC ISO text, formatted in SQL;
+    - `DataUpdated` renders `<time dateTime="…Z">Data updated Thu Oct 22, 12:29 pm ET</time>` in the footer, inside Suspense and a `quiet` `SectionError`;
+    - `formatEastern` uses `America/New_York`, unit-tested across daylight saving time;
+    - the footer is cached marts data in every page, and `/` and `/_not-found` stay `○`.
+  - **`pipeline refresh --expect-stamp`:** after the POST, reads the stamp from `marts.data_freshness` and checks every main page's `<time dateTime>` shows it, retrying every 10 s for up to 2 minutes; exit 2 if not.
+  - **`.github/workflows/nightly.yml`:**
+    - **Triggers:** `schedule` (09:30 UTC) and `workflow_dispatch`, with inputs `target` (production | test) and `simulate_failure` (none | weather | schedules | dbt_test).
+    - **Environment:** the job uses the GitHub Environment named by `target`, with no fallback between secrets. A guard step refuses a simulation on production, and another fails at once if the environment has no `DATABASE_URL`.
+    - **Settings:** `permissions: contents: read`; `concurrency: nightly-<target>`, never cancelling; 45-minute timeout; the Open-Meteo cache restored and saved even on failure.
+    - **Steps:** ingest; publish (skipped on ingest exit 2); a publish decision (published on 0 or 3); refresh with the stamp check (production, when published); the advisory checks (a warning, never a failure); and a final step that fails the run if any stage failed.
+    - **Addition to the plan:** scheduled runs need the repository variable `NIGHTLY_SCHEDULE` = `on`. The workflow file lands on `main` before the test-target rehearsals, and Rob asked that scheduled production runs wait for them. The variable is also the off switch; manual runs always work.
+  - **SQL checks:** `latest_run_loads.sql`, `marts_table_oids.sql`, `candidate_schemas_unreadable.sql`.
+- **Tests:**
+  - **pytest:** 102, up from 69:
+    - `test_runs` (13): the sanitizer; ingest's exit codes with fake loaders; the weather rate limit; and, `local_only`, the tables, their constraints and abandoned runs;
+    - `test_publish` (14): the order and every exit code with a fake database; float-tolerant comparison; and, `local_only`, the fingerprint (an upsert moves it, a read doesn't), the SHARE lock making an insert wait, and the lock waiting for an uncommitted insert;
+    - `test_refresh` (+6): the stamp check.
+  - **Vitest:** 136, with 6 for `formatEastern`.
+- **Local rehearsal** (Docker, the real commands; mart identities from `pg_class`):
+
+  | # | Scenario | Result |
+  | --- | --- | --- |
+  | R1 | `ingest`, then `publish --compare` | Exits 0 and 0; 9 of 10 marts with new OIDs (`situations` is a seed, reloaded in place); 10 of 10 identical to the candidate; F0 = F1 |
+  | R2 | `ingest --simulate-failure weather`, then `publish` | Ingest exit 1, run `partial`, `game_weather` `failed` with its error, the others loaded; publish exit 0; `data_freshness` shows weather `failed` with its older success |
+  | R3 | `ingest --simulate-failure schedules` | Exit 2, run `failed`, so no publish (as in the workflow); all 10 mart OIDs identical; the freshness stamp didn't move |
+  | R4 | `publish --simulate-test-failure` | Candidate PASS=337, ERROR=1 (`simulated_failure`); exit 1, "marts untouched (10 tables, same identities)"; all 10 OIDs and `marts.games`' values identical; the stamp didn't move |
+  | R5 | `ingest --only teams` started while `publish` held raw | The ingest waited 38.6 s, until publish committed, then loaded in under a second; publish exit 0 with F0 = F1 |
+  | R6 | A rerun: `ingest`, then `publish --compare` | 0 rows inserted, updated or deleted in every table; 10 of 10 marts identical to the candidate |
+  | R7 | `web_reader.sql` applied to a throwaway local role, then `candidate_schemas_unreadable.sql` | `marts`: usage, 10 readable tables; `marts_candidate` and `staging_candidate`: no usage, 0 readable; role dropped after |
+  | R8 | `next start`, then publish, then `refresh --expect-stamp` | Before the refresh every page kept the old stamp; after it, all 8 checked pages (the 404 page included) showed the new one, and the check passed (exit 0) |
+  | R9 | A publish, then a refresh with a wrong secret | Exit 1 ("the site refused the secret"); the pages kept the old stamp; the next correct refresh recovered |
+
+  - **Two bugs found and fixed before the rehearsal:**
+    - pandas' `NaT` and NA compare unequal to themselves, so `--compare` now treats every pandas missing value as NULL;
+    - array columns can't be sorted by pandas, so rows are ordered by their text.
+  - **EPA:** `--compare` sees `team_games.epa` differ between the two builds in the last bits (e.g. −18.86208409073272 against −18.862084090732715), as the plan predicted, and accepts it within the tolerance.
+- **Production steps** (Neon expand, test-target rehearsals, the first production run and the first scheduled run) are recorded below once they've run.
+- **Why:** the plan's publishing safeguard, now with its lock tested. Every published mart was built from the same frozen raw rows as a candidate that passed every test; a failure anywhere before the real build leaves the marts exactly as they were; and the stamp, the refresh and the run records make each night's outcome visible.

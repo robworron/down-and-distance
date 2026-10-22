@@ -54,9 +54,20 @@ Run from the repo root unless noted. Anything local needs Docker Desktop running
   - `--seasons 2020-2022`: chosen seasons; also `2025` or `2016,2018-2020`. Can't be combined with `--full`.
   - `--only schedules,teams,weather,pbp`: a subset, still loaded in that order.
   
+  Each table loads on its own and every run is recorded in `raw.pipeline_runs` / `raw.source_loads` (`pipeline/runs.py`). Exit 0 all loaded, 1 an optional table failed, 2 schedules failed (nothing to publish). `--simulate-failure TABLE` fails one table on purpose, only locally or with `--target test`.
+
   Loads are idempotent upserts, so reruns are safe. For production, set `DATABASE_URL` to `NEON_DATABASE_URL` for that one command, without echoing it. Don't `source .env` in Bash for this: the Neon URLs contain `&`, which truncates the value. Set it from Python (`dotenv_values`) and run the module with `runpy`.
-- **dbt:** `uv run python -m pipeline dbt <command>` (e.g. `build`, `seed`, `debug`, `ls`) runs dbt in `transform/` against `DATABASE_URL`: `pipeline/run_dbt.py` splits the URL into the `DBT_*` variables `transform/profiles.yml` reads. Don't run `dbt` directly. For production, set `DATABASE_URL` to Neon for that one command, as with ingest.
-- **Refresh the site:** `uv run python -m pipeline refresh --site <url>` (or `SITE_URL` in the environment) POSTs `REVALIDATE_SECRET` to `/api/revalidate`, which expires every cached marts query, then requests the main pages and prints each status and time. Run it after any dbt build the site should show. Exit codes: 0 ok, 1 the refresh was refused or failed (401 and 503 aren't retried), 2 a page check failed. The secret is never printed.
+- **dbt:** `uv run python -m pipeline dbt <command>` (e.g. `build`, `seed`, `debug`, `ls`) runs dbt in `transform/` against `DATABASE_URL`: `pipeline/run_dbt.py` splits the URL into the `DBT_*` variables `transform/profiles.yml` reads. Don't run `dbt` directly.
+- **Publish (every production build):** `uv run python -m pipeline publish` (`pipeline/publish.py`), never a plain `dbt build` against Neon. Under a SHARE lock on every raw table it runs the raw gate (`test_raw_data.py -m "not advisory"`), a full candidate build into `staging_candidate` / `marts_candidate`, and only then the real build, then checks raw didn't change and the row counts match.
+  - **Exit codes:** 0 published; 1 candidate failed (marts untouched); 2 publish stage failed; 3 equivalence check failed (published); 4 raw gate failed; 5 no lock.
+  - **Options:** `--compare` compares every value (rehearsals); `--full-refresh` goes to both builds; `--simulate-test-failure` fails the candidate on purpose (local or `--target test` only).
+  - **Connection:** `DATABASE_URL` must be the direct (unpooled) host, so the lock holds. For production, set it to `NEON_DATABASE_URL` for that one command, as with ingest.
+- **Refresh the site:** `uv run python -m pipeline refresh --site <url>` (or `SITE_URL` in the environment) POSTs `REVALIDATE_SECRET` to `/api/revalidate`, which expires every cached marts query, then requests the main pages and prints each status and time. Run it after any publish the site should show. `--expect-stamp` then checks every main page's footer shows `marts.data_freshness`'s newest schedules stamp (retrying up to 2 minutes). Exit codes: 0 ok, 1 the refresh was refused or failed (401 and 503 aren't retried), 2 a page check failed. The secret is never printed.
+- **Nightly job:** `.github/workflows/nightly.yml` runs ingest, publish and (production only, after a publish) `refresh --expect-stamp`; the last step fails the run if any stage failed.
+  - **When:** daily at 09:30 UTC, only while the repository variable `NIGHTLY_SCHEDULE` is `on` (delete it to stop the schedule), and by hand from the Actions tab.
+  - **Where:** each run uses the GitHub Environment named by its `target` input: `production` (`DATABASE_URL` = the Neon production owner URL, `REVALIDATE_SECRET`; `main` only) or `test` (`DATABASE_URL` = the Neon `nightly-test` branch's owner URL). `SITE_URL` is a repository variable.
+  - **Failure rehearsals:** `simulate_failure` (weather, schedules, dbt_test) is refused unless the target is `test`. Never simulate a failure on production.
+  - **Run records:** `pipeline/sql/checks/latest_run_loads.sql` shows what the last run did; `marts_table_oids.sql` shows whether the marts were replaced.
 - **Weather cache:** `pipeline/.cache/open-meteo/` (gitignored). Without it, a `--full` run refetches about 6,000 games (around 90 minutes, paced to Open-Meteo's free tier).
 - **Tests:** `uv run pytest` runs everything. Against Neon, run only the data checks: `uv run pytest pipeline/tests/test_raw_data.py`. Web unit tests (pure functions in `web/lib`, e.g. badge contrast): `npm test` in `web/` (Vitest).
 - **Lint:** `uv run ruff check` (ruff's default rules; notebooks excluded in `pyproject.toml`). Web: `npm run lint` in `web/`.
@@ -94,7 +105,7 @@ Run from the repo root unless noted. Anything local needs Docker Desktop running
 
 ## Project layout
 
-- `pipeline/` Python: ingestion, weather and analysis helpers; player loaders, run records and projections are planned (step 1.6, Phases 2 and 6). Tests in `pipeline/tests/`.
+- `pipeline/` Python: ingestion with run records, publishing, the site refresh, weather and analysis helpers; player loaders and projections are planned (Phases 2 and 6). Tests in `pipeline/tests/`.
 - `transform/` dbt project: `seeds/`, `models/staging/`, `models/marts/`.
 - `web/` Next.js App Router app. All database queries live in `web/lib/queries.ts` (split by domain into `web/lib/queries/` in step 5.1).
 - `notebooks/` Jupyter analysis. `docs/` build plan, requirements, decisions, data model, findings.
