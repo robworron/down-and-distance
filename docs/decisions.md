@@ -724,3 +724,101 @@ Step 1.4, the rest of the agreed design (`docs/plans/states-and-caching.md` § 1
     - `/teams/BUF`: 308 to `/teams/buf`, query string kept;
     - every other route unaffected.
   - Each route's title and description are in `<head>` for an HTML-limited bot, as locally.
+
+### 2026-10-22 — Caching and the refresh route
+
+Step 1.5, to `docs/plans/states-and-caching.md` § 1.5 (decision D5 of the Phase 1 plan: the refresh command is `pipeline refresh`).
+
+- **Changed:**
+  - **One cache for the marts.** Every query in `web/lib/queries.ts` (all 10) starts with `"use cache"` and `martsCache()` (`web/lib/cache.ts`). That gives each one the `marts` lifetime profile (`next.config.ts`: `stale` 300 s, `revalidate` 86,400 s, `expire` 31,536,000 s) and the `marts` tag.
+  - **Static shells:**
+    - `/`, `/teams` (no more `connection()`) and `/this-week` are fully static (`○`).
+    - `/teams/[team]` prerenders the 32 codes from `generateStaticParams` (the cached `getTeams()`). The header and the season table are in each shell. The range bar, headline figures, splits and the sparkline's shading stream, because they read the query string; the sparkline is a `<Suspense>` slot in the header, unshaded in the shell.
+    - `/explorer` and `/leaderboards` are `◐`.
+    - The route table matches the plan exactly, with `/api/revalidate` as `ƒ`.
+    - No `instant = false` was needed. 1.4 had already removed the pre-stream wait, so 1.5 had none to remove.
+  - **`POST /api/revalidate`:**
+    - `checkRefreshAuth` (`web/lib/refresh-auth.ts`) compares SHA-256 digests with `timingSafeEqual` and accepts exactly `Bearer <token>`. A blank or unset secret is "unconfigured", which gives 503 even for a correct token; anything else wrong gives 401. Both answers are empty and `no-store`.
+    - On success it calls `revalidateTag("marts", { expire: 0 })` and returns `{ revalidated: true, at }`.
+    - GET gets 405, and nothing is logged.
+  - **`uv run python -m pipeline refresh --site URL`** (or `SITE_URL`, `pipeline/refresh.py`):
+    - POSTs the secret, retrying network errors and 5xx 3 times (waits of 2, 4 and 8 s) and never a 401, 503 or other 4xx;
+    - then GETs the 6 main pages;
+    - exits 0 (ok), 1 (refresh refused or failed) or 2 (a page check failed);
+    - never prints the secret, and prints only an exception's class name.
+  - **The secret:** generated into `.env` and `web/.env.local` without being printed; the name is in `.env.example`; Rob set it in Vercel (Production) and redeployed.
+- **Tests:**
+  - **Vitest** `refresh-auth` (5): correct; wrong and different lengths; missing or empty; `Basic`, lower-case `bearer`, a bare token, double spaces and trailing text; unconfigured (unset, empty, blank).
+  - **pytest** `test_refresh` (17): the Bearer header and every page checked; retries on connection errors and timeouts; 3 retries on 5xx with the 2/4/8 waits; no retry on 401, 503, 404 and 405; exit 2 on a failed or unanswered page; exit 1 with no request when there's no secret; the secret never printed; `--site` required.
+  - **Regression set:** pytest 69, `dbt build` PASS=332, ruff clean, lint 0, `tsc` 0, Vitest 130 (12 files), `next build`; `check:status` 18 of 18 locally and live; titles and descriptions in every route's head, locally and live.
+- **Timings** (`curl`, total time in ms, the first visit after a server start, then the median of 10 repeats):
+
+  | Page | Local before → after: first | Local: repeat | Live before → after: first | Live: repeat |
+  | --- | --- | --- | --- | --- |
+  | `/` | 3 → 5 | 3 → 2 | 362 → 111 | 117 → 109 |
+  | `/teams` | 162 → 13 | 22 → **2** | 2,005 → **129** | 196 → **122** |
+  | `/teams/buf` | 186 → 337 | 85 → 77 | 1,744 → **957** | 387 → 405 |
+  | `/teams/buf?from=2016&to=2025` | 101 → 120 | 96 → 81 | 482 → 469 | 430 → 423 |
+  | `/explorer` | 29 → 46 | 33 → 19 | 318 → 204 | 181 → 183 |
+  | `/leaderboards` | 77 → 33 | 48 → 34 | 383 → 338 | 236 → 224 |
+  | `/this-week` | 72 → 6 | 63 → **4** | 545 → **149** | 308 → **153** |
+
+  - **How they were measured.** Local is the same machine, the 1.4 build (`287fa81`, in a scratch worktree) against this one. Live is just before and just after the push, with about 105 ms of network round trip in every live figure.
+  - **The static pages** are much faster, especially first visits; every live shell is `X-Vercel-Cache: PRERENDER`, then `HIT`.
+  - **Request-time sections** (anything that reads the query string) are about the same live, as the docs predict for serverless memory, and a little faster locally. Their remaining time is mostly CPU for the split tables.
+- **Local verification matrix** (`next start`, one instance; every value changed was in the local marts, and restored after):
+
+  | # | Scenario | Result |
+  | --- | --- | --- |
+  | L1 | BUF's `team_name` and `team_nick` changed in `marts.dim_teams`; no POST | Shell (`/teams/buf` h1), request-time (`/teams/buf?from=2016` legend) and `/teams` all still old. **Pass** |
+  | L2 | POST with a wrong secret, no header, and `Basic`; then to a second instance of the same build with `REVALIDATE_SECRET` blank | 401, 401, 401 (empty, `no-store`); then 503 for a wrong **and** the right secret. Pages still old. **Pass** |
+  | L3 | `pipeline refresh` against a port with no server | 4 attempts (waits 2, 4, 8 s), exit 1, "gave up after 3 retries"; the secret not in the output. **Pass** |
+  | L4 | Correct `pipeline refresh` | 200, 6 page checks ok; the next request to the shell, the request-time section and `/teams` all new. **Pass** |
+  | L5 | Headless Chrome: `/teams/buf` open before L4; after it, client navigation to `/teams` and back, then a reload | Both client navigations showed the old name (the router reuses its copy within `stale`; `/teams` came from its prefetch); the reload showed the new one. **As documented** |
+  | L6 | Temporary, uncommitted build with `revalidate` 60 s, `expire` 300 s; no POST | After 61 s: shell and `/teams` old on the 1st request, new on the 2nd; the request-time section already new on the 1st. After 310 s idle past a second change: the 1st request new (it waited 0.26 s). Config restored, route table identical. **Pass** |
+  | L7 | GET `/api/revalidate` | 405. **Pass** |
+  | L8 | `dbt build --select dim_teams`, then refresh | "Buffalo Bills" back in all three places. **Pass** |
+
+- **Live verification matrix:**
+
+  | # | Check | Result |
+  | --- | --- | --- |
+  | V1 | Route table and live cache headers | Vercel built `6253d59` (the build reads Neon). `/`, `/teams`, `/this-week`, `/teams/buf` and `/explorer`: `PRERENDER` on the first request, `HIT` after |
+  | V2 | Timings against the live baseline | The table above |
+  | V3 | Wrong secret, no header, GET | 401, 401, 405. Before Rob's redeploy the route answered 503: the deployment had no secret, failing closed |
+  | V4 | `pipeline refresh` | 200, 6 page checks ok (0.4–1.3 s: re-renders); `/teams/sf` then `REVALIDATED`, `HIT`, `HIT` |
+  | V5 | Data-change probe | Below |
+
+  **V5, a real production data change (Rob approved each command).**
+  - **The change.** Neon was missing one result, `2026_06_WAS_SF` (Monday 2026-10-19; nflverse: SF 23, WAS 17). The routine refresh was rehearsed locally first on the same data, then run on production:
+    - `ingest`: `raw.schedules` 28 updated, `raw.game_weather` 1 inserted, `raw.pbp` 168 inserted and 18 updated, the same as locally;
+    - the raw data checks: 17 of 17;
+    - `dbt build`: PASS=332 in 47 s; 93 finished 2026 games, up from 92;
+    - `create_web_reader --check`: marts 9 of 9, staging and raw 0, writes refused.
+  - **Probes**, each request repeated in parallel so more than one Vercel instance could answer:
+    - shell: SF's 2026 row on `/teams/sf`;
+    - request-time: SF's 2026 record on `/teams/sf?from=2026&to=2026`;
+    - static: This week's heading;
+    - request-time: SF's row on `/leaderboards?from=2026&to=2026`.
+
+  | Moment | Shell: SF 2026 | Request-time: SF 2026 | This week | Board: SF home |
+  | --- | --- | --- | --- | --- |
+  | Before the ingest (8 requests over 2 rounds) | 5–0 | 5–0 | Week 6 | 3–0 |
+  | After the dbt build, before the POST (16 requests) | 5–0 (old) | **6–0** | Week 6 (old) | **4–0** |
+  | After the POST, 10 rounds over 10 minutes (80 requests each) | **6–0** (80 of 80) | 6–0 (80 of 80) | **Week 7** (80 of 80) | 4–0 (80 of 80) |
+
+  - **Before the POST:** a missed refresh left every shell old. The request-time sections were already new on all 16 requests, because no instance served an old in-memory entry. So `/teams/sf?from=2026&to=2026` briefly showed 5–0 in its shell's season table beside 6–0 in its headline: the mixed state the plan said wasn't ruled out.
+  - **After the POST:** every shell was new on its first request (`REVALIDATED`, then `HIT`). Over 10 minutes and 80 requests per probe (8 in parallel each round, all served as `HIT`), no probe ever returned an old value.
+  - **V6 (the decision rule):** not triggered, because no request-time probe showed old data after the POST. The cache stays as built: one in-memory `use cache` store per instance, no `'use cache: remote'`.
+- **What the site guarantees** (Next 16.4.1 docs; *measured* where marked):
+
+  | Situation | Prerendered shells (`/`, `/teams`, `/this-week`, the 32 team shells) | Request-time sections (anything read from the query string) | A browser tab already open |
+  | --- | --- | --- | --- |
+  | After a successful refresh | The next request re-renders, blocking, then later ones are cache hits (*measured*: `REVALIDATED`, then `HIT`) | New on the next request. *Measured live:* new on every probe request after the POST (V5); they were already new before it, since instances didn't keep old entries | Client navigation may reuse its copy for up to 5 min (`stale` 300); a reload always asks the server (*measured* locally, L5) |
+  | Refresh failed or never sent | Old data until a later refresh, the first request after 24 h (served old once, then new: *measured* with 60 s in L6), or the next deploy | Mostly current, because serverless entries usually don't persist (*measured*: new before any POST, V5). A warm instance could keep an entry up to 24 h; not seen | As above |
+  | After a deploy | Built from Neon at build time | Fresh (cache keys include the build ID) | Next's version-skew handling |
+
+  **Not claimed:**
+  - that every instance drops its old entries at the moment of the refresh: Next documents `revalidateTag` as per-instance unless the platform coordinates. V5 found no old entries after the POST, but that's evidence, not a guarantee;
+  - that a page's shell and its streamed sections always come from the same load: between a dbt build and its refresh they don't (seen in V5). Step 1.6's publish-then-refresh keeps that window short, and both are tested data.
+- **Why:** the marts change once a night, so caching every query with one tag lets the nightly job refresh the whole site with one authenticated call. The static pages no longer query the database at all, and the 24-hour safety net bounds how stale a missed refresh can leave them.

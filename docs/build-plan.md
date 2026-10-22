@@ -536,7 +536,7 @@ The site is then safe to change and stays fresh while the player features are bu
     - each empty and error state is shown once;
     - every route's title and description are in its HTML head;
     - tests, lint and build pass.
-- [ ] **1.5 Caching and the refresh route.** Built to the agreed design in `docs/plans/states-and-caching.md`:
+- [x] **1.5 Caching and the refresh route.** Built to the agreed design in `docs/plans/states-and-caching.md`:
   - `'use cache'` with `cacheLife('marts')` and `cacheTag('marts')` on every query, a tag every later query also uses;
   - static shells;
   - `POST /api/revalidate` with a Bearer secret compared in constant time. Rob adds `REVALIDATE_SECRET` in Vercel.
