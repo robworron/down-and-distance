@@ -5,7 +5,7 @@
 // same numbers in SQL.
 
 import type { SeasonLeagueSums } from "./queries";
-import { meanEstimate, winPctEstimate, type Estimate } from "./stats";
+import { sampleMeanEstimate, winPctEstimate, type Estimate } from "./stats";
 
 /** The analysis seasons: every finished regular season when the verdicts were set. */
 export const EFFECT_SEASONS: [number, number] = [1999, 2025];
@@ -92,7 +92,7 @@ export function featuredEffects(rows: SeasonLeagueSums[]): Map<string, FeaturedE
         vOvers += r.overs / 2;
         vDecided += (r.ouGames - r.ouPushes) / 2;
       }
-      const effect = meanEstimate(dev, devSq, n);
+      const effect = sampleMeanEstimate(dev, devSq, n);
       if (!effect) continue;
       out.set(k, {
         kind: "points",
@@ -113,7 +113,7 @@ export function featuredEffects(rows: SeasonLeagueSums[]): Map<string, FeaturedE
       );
       const winPct = winPctEstimate(s);
       if (!winPct) continue;
-      out.set(k, { kind: "win", games: s.games, winPct, margin: meanEstimate(s.margin, s.marginSq, s.games) });
+      out.set(k, { kind: "win", games: s.games, winPct, margin: sampleMeanEstimate(s.margin, s.marginSq, s.games) });
     }
   }
   return out;

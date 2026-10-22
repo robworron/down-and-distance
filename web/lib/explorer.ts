@@ -5,7 +5,7 @@
 
 import type { Situation } from "./queries";
 import { includes2020, parseSeasonRange, rangeParams, type SearchParams, type SeasonRange } from "./season-range";
-import { meanEstimate, overPctEstimate, smallSampleRule, winPctEstimate, type Estimate } from "./stats";
+import { overPctEstimate, sampleMeanEstimate, TOO_FEW_FOR_RANGE, winPctEstimate, type Estimate } from "./stats";
 
 /** The explorer opens on the seasons since 2016 (Rob's choice): enough games for combinations. */
 export const EXPLORER_FROM = 2016;
@@ -197,7 +197,7 @@ const abs1 = (x: number) => Math.abs(x).toFixed(1);
 
 /** "… The range includes zero, so this could be chance." for a mean against a reference value. */
 function rangeClause(e: Estimate, reference: number): string {
-  if (!e.ci) return " Too few games for a range.";
+  if (!e.ci) return ` ${TOO_FEW_FOR_RANGE[0].toUpperCase()}${TOO_FEW_FOR_RANGE.slice(1)}.`;
   return e.ci.low <= reference && reference <= e.ci.high
     ? " The range includes zero, so this could be chance."
     : " The range excludes zero.";
@@ -238,7 +238,7 @@ export function buildExplorerResult(state: ExplorerState, s: ExplorerSums): Expl
       winPct: basis === "even" ? 0.5 : s.oneExpectedWins / s.oneGames,
       margin: basis === "even" ? 0 : s.oneExpectedMargin / s.oneGames,
     } as const;
-    const margin = smallSampleRule(meanEstimate(s.oneMargin, s.oneMarginSq, s.oneGames), s.oneGames);
+    const margin = sampleMeanEstimate(s.oneMargin, s.oneMarginSq, s.oneGames);
     oneSided = {
       games: s.oneGames,
       record: { wins: s.oneWins, losses: s.oneGames - s.oneWins - s.oneTies, ties: s.oneTies },
@@ -251,7 +251,7 @@ export function buildExplorerResult(state: ExplorerState, s: ExplorerSums): Expl
 
   let shared: SharedCard | null = null;
   if (s.bothGames > 0) {
-    const total = smallSampleRule(meanEstimate(s.bothTotal, s.bothTotalSq, s.bothGames), s.bothGames);
+    const total = sampleMeanEstimate(s.bothTotal, s.bothTotalSq, s.bothGames);
     const expectedTotal = s.bothExpectedTotal / s.bothGames;
     shared = {
       games: s.bothGames,
@@ -270,8 +270,8 @@ export function buildExplorerResult(state: ExplorerState, s: ExplorerSums): Expl
       games: s.teamGames,
       record: { wins: s.teamWins, losses: s.teamLosses, ties: s.teamTies },
       winPct: winPctEstimate({ games: s.teamGames, wins: s.teamWins, ties: s.teamTies }),
-      margin: smallSampleRule(meanEstimate(s.teamMargin, s.teamMarginSq, s.teamGames), s.teamGames),
-      total: showScoring ? smallSampleRule(meanEstimate(s.teamTotal, s.teamTotalSq, s.teamGames), s.teamGames) : null,
+      margin: sampleMeanEstimate(s.teamMargin, s.teamMarginSq, s.teamGames),
+      total: showScoring ? sampleMeanEstimate(s.teamTotal, s.teamTotalSq, s.teamGames) : null,
       overPct: showScoring ? overPctEstimate({ ouGames: s.teamDecided, overs: s.teamOvers, ouPushes: 0 }) : null,
       showScoring,
       usual: {

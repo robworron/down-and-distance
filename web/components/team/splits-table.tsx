@@ -1,11 +1,11 @@
 import { cn } from "cn";
 
 import { InfoTip } from "@/components/info-tip";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Hint } from "@/components/hint";
 import { formatCount, formatPct, formatShare, formatSigned, formatWholePct } from "@/lib/format";
 import { formatRecord } from "@/lib/records";
 import type { SituationBlock, ValueRow } from "@/lib/splits";
-import type { Estimate } from "@/lib/stats";
+import { TOO_FEW_FOR_RANGE, type Estimate } from "@/lib/stats";
 
 const SHRUNK_TIP =
   "A best estimate for a small sample. It starts from the team's usual record, adjusted by how the whole league does in this situation, and adds a share of what these games show. The share grows as games accumulate; most team splits turn out to be mostly luck.";
@@ -14,6 +14,11 @@ const pctCi = (e: Estimate | null) => (e?.ci ? `${Math.round(e.ci.low * 100)}–
 const signedCi = (e: Estimate | null) => (e?.ci ? `${formatSigned(e.ci.low)} to ${formatSigned(e.ci.high)}` : null);
 // A game total can't be below 0 points, so its interval stops there.
 const totalCi = (e: Estimate | null) => (e?.ci ? `${Math.max(0, e.ci.low).toFixed(1)}–${e.ci.high.toFixed(1)}` : null);
+
+/** Under a team's margin or total: its interval, or why it has none (fewer than 3 games). */
+function rangeOr(ci: string | null) {
+  return ci ?? <span className="inline-block max-w-[6.5rem] whitespace-normal">{TOO_FEW_FOR_RANGE}</span>;
+}
 
 /** A figure with an optional second, quieter line (its CI or its n). */
 function Figure({ main, sub }: { main: React.ReactNode; sub?: React.ReactNode }) {
@@ -25,19 +30,16 @@ function Figure({ main, sub }: { main: React.ReactNode; sub?: React.ReactNode })
   );
 }
 
-/** A league figure: its value and n; the CI on hover or focus only. */
+/** A league figure: its value and n; the CI on hover, focus or tap only. */
 function LeagueFigure({ main, ci, n, what }: { main: string; ci: string | null; n: number; what: string }) {
   const sub = `n ${formatCount(n)}`;
   if (!ci) return <Figure main={main} sub={sub} />;
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span tabIndex={0} className="block cursor-help rounded-sm focus-visible:outline-2" aria-label={`${what} ${main}, 95% CI ${ci}, ${sub}`}>
-          <Figure main={main} sub={sub} />
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>95% CI {ci}</TooltipContent>
-    </Tooltip>
+    <Hint content={`95% CI ${ci}`}>
+      <span tabIndex={0} className="block cursor-help rounded-sm focus-visible:outline-2" aria-label={`${what} ${main}, 95% CI ${ci}, ${sub}`}>
+        <Figure main={main} sub={sub} />
+      </span>
+    </Hint>
   );
 }
 
@@ -139,18 +141,15 @@ export function SplitsTable({ block, surface }: { block: SituationBlock; surface
   );
 }
 
-/** The shrunk win % to one decimal, and where it comes from, on hover or focus. */
+/** The shrunk win % to one decimal, and where it comes from, on hover, focus or tap. */
 function Shrunk({ value, weight, n, k }: { value: number; weight: number; n: number; k: number }) {
   const detail = `${formatPct(value)}: ${formatPct(weight)} from these ${formatCount(n)} ${n === 1 ? "game" : "games"} (k = ${k} games)`;
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span tabIndex={0} className="block cursor-help rounded-sm focus-visible:outline-2" aria-label={`Shrunk win % ${detail}`}>
-          <Figure main={formatWholePct(value)} sub={<span className="inline-block xl:max-w-[5.5rem] xl:whitespace-normal">{formatShare(weight)} from these games</span>} />
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>{detail}</TooltipContent>
-    </Tooltip>
+    <Hint content={detail}>
+      <span tabIndex={0} className="block cursor-help rounded-sm focus-visible:outline-2" aria-label={`Shrunk win % ${detail}`}>
+        <Figure main={formatWholePct(value)} sub={<span className="inline-block xl:max-w-[5.5rem] xl:whitespace-normal">{formatShare(weight)} from these games</span>} />
+      </span>
+    </Hint>
   );
 }
 
@@ -169,10 +168,10 @@ function Row({ row, k, sticky, league }: { row: ValueRow; k: number; sticky: str
       <td className={td}>
         {row.shrunk ? <Shrunk value={row.shrunk.value} weight={row.shrunk.weight} n={row.n} k={k} /> : dash}
       </td>
-      <td className={td}>{row.margin ? <Figure main={formatSigned(row.margin.value)} sub={signedCi(row.margin)} /> : dash}</td>
+      <td className={td}>{row.margin ? <Figure main={formatSigned(row.margin.value)} sub={rangeOr(signedCi(row.margin))} /> : dash}</td>
       {c.level === "game" && (
         <>
-          <td className={td}>{c.total ? <Figure main={c.total.value.toFixed(1)} sub={totalCi(c.total)} /> : dash}</td>
+          <td className={td}>{c.total ? <Figure main={c.total.value.toFixed(1)} sub={rangeOr(totalCi(c.total))} /> : dash}</td>
           <td className={td}>{c.overPct ? <Figure main={formatWholePct(c.overPct.value)} sub={pctCi(c.overPct)} /> : dash}</td>
           <td className={cn(td, league)}>
             {c.league.total ? (

@@ -4,6 +4,8 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { Container } from "@/components/container";
+import { SectionError } from "@/components/section-error";
+import { TeamsIndexSkeleton } from "@/components/skeletons";
 import { TeamBadge } from "@/components/team-badge";
 import { getTeams, type Team } from "@/lib/queries";
 
@@ -18,9 +20,11 @@ export default function TeamsPage() {
       <Container className="py-8">
         <h1 className="text-3xl font-bold tracking-tight">Teams</h1>
         <p className="mt-2 text-ink-2">Pick a team to see its record and how it does in each situation.</p>
-        <Suspense fallback={<p className="mt-8 text-muted-foreground">Loading teams…</p>}>
-          <TeamsByDivision />
-        </Suspense>
+        <SectionError what="the teams">
+          <Suspense fallback={<TeamsIndexSkeleton />}>
+            <TeamsByDivision />
+          </Suspense>
+        </SectionError>
       </Container>
     </main>
   );

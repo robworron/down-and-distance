@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "db:pull": "drizzle-kit pull",
-    "test": "vitest run"
+    "test": "vitest run",
+    "check:status": "node scripts/check-status.mjs"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

@@ -642,3 +642,77 @@ Step 1.3 (decisions D2 and D3 of the Phase 1 plan).
     - **robworron/down-and-distance#2, `ci-red-pytest`:** `assert False` in `pipeline/tests/test_transforms.py`. [Run 39716116394](https://github.com/robworron/down-and-distance/actions/runs/39716116394) was red: `python` failed at "Tests (pytest)" (1 failed, 35 passed), and `web` passed.
   - **Vercel previews:** Vercel built a preview of each PR. #1's failed on the same type error, a second check that a broken push never deploys; #2's built.
   - **`ci.yml` references no secret:** `grep -c "secrets\." .github/workflows/ci.yml` gives 0.
+
+### 2026-10-22 — Team URLs checked in Proxy
+
+Step 1.4. This reverses the 2026-10-19 decision to check team codes in the page rather than in Proxy (`docs/plans/states-and-caching.md`); Rob approved the change on the evidence below.
+
+- **What failed.** The agreed design checked the code and looked the team up before the page's first `<Suspense>`, so `notFound()` would give a 404 and `permanentRedirect()` a 308. `next build` accepted it, but on `next start` every case still returned **200**. These were all tried, then reverted:
+
+  | Experiment | `/teams/xyz` | `/teams/BUF` | `/teams/b-u-f` |
+  | --- | --- | --- | --- |
+  | As designed: `instant = false`, lookup before Suspense | 200 | 200 | 200 |
+  | + `prefetch = 'force-disabled'` on the route | 200 | 200 | 200 |
+  | `partialPrefetching` off app-wide | 200 | 200 | 200 |
+  | + the header's nav `<Suspense>` removed | 200 | 200 | 200 |
+  | `generateStaticParams` added (the route becomes `ƒ`, as in the docs' blocking example) | 200 | 200 | 200 |
+  | + the nav `<Suspense>` removed | 200 | 200 | 200 |
+  | A throwaway route written like the docs' 404 example | 200 | — | — |
+
+  - **Why.** The build writes `"status": 200` into the route's prerender metadata, and each request resumes that saved render, so a `notFound()` in the page, even with no database call before it, only adds `noindex`.
+  - **What did work.** Unmatched URLs (`/nope`) always gave a real 404.
+- **Changed:**
+  - **`web/proxy.ts`,** with the matcher `/teams/:team` only: one segment, not `/teams`, deeper paths, API routes, other pages or assets. Its decisions:
+    - a team's lower-case code: through to the page;
+    - other casing of a team's code: a 308 to the lower-case URL, query string kept;
+    - anything else (an unknown code in any casing, a malformed segment): a rewrite to `/teams/__no-such-team/404`, a path no route matches.
+  - **Why that rewrite target.** Next.js answers an unmatched path with `app/not-found.tsx`, inside the site layout, with a real 404.
+    - A rewrite to a real page kept that page's 200 even with `status: 404`, whether the page was static (`○`) or partial (`◐`); both were tried.
+    - So there's one not-found page. It says "No team with that code" on `/teams/...` URLs, read from the URL in the browser; the server HTML has the generic heading.
+  - **One list of codes:** `web/lib/team-codes.json` (32 codes). `parseTeamSlug` (`web/lib/team-slug.ts`) is the one rule, used by Proxy and by the page's fallback check.
+  - **No per-request query:** `test_raw_data.py::test_site_team_codes_match_dim_teams` compares the file with `marts.dim_teams`. It runs:
+    - with the data checks, locally and against Neon;
+    - in step 1.6's nightly gate.
+
+    A deliberately drifted file (OAK for WAS) fails it with both differences named.
+  - **The not-found page reads no data.** It's part of every route: an uncached team-name query there turned `/` from `○` into `◐`, so every home-page visit queried the database. It lists the codes, and the names wait for 1.5's cache (parking lot).
+  - **The team page streams everything again:** no `instant = false`, and no wait before the first byte (TTFB 4–30 ms locally).
+- **Tests:**
+  - **Vitest** (`proxy.test.ts`): Next's matcher helper confirms Proxy runs on `/teams/<one segment>` and on none of 10 other routes (`/`, `/teams`, `/teams/buf/extra`, `/api/revalidate`, `/_next/static/...`, `/favicon.ico` and others). It also checks pass-through, the 308s with their query strings, the rewrites for 7 bad codes, and that the rewrite target matches no route.
+  - **`team-slug.test.ts`:** every listed code, the casings, and 11 non-codes.
+  - **`npm run check:status -- <url>`** (`web/scripts/check-status.mjs`): 18 live requests with the expected status, redirect target and 404 body (inside the layout, with `noindex`).
+- **Why:** a soft 404 (a 200 with `noindex`) was the only alternative; Rob chose a real status over it. Proxy runs before rendering, so it's the one place the status can still be chosen. Keeping the codes in a file avoids a database query on every team-page request, and the data check keeps that copy honest.
+
+### 2026-10-22 — States and polish
+
+Step 1.4, the rest of the agreed design (`docs/plans/states-and-caching.md` § 1.4).
+
+- **Errors:**
+  - **`app/error.tsx`:** inside the layout, with retry and a home link.
+  - **`app/global-error.tsx`:** its own document and styles. Neither shows error detail.
+  - **`SectionError`** (`catchError`) wraps each streamed section, outside its `<Suspense>`: the teams index, the team page (`contained`, in the content column), the explorer, the leaderboard and This week.
+  - **Team-page metadata:** `generateMetadata` catches a failed lookup and falls back to the code as the title, so a database error shows the section message instead of the page-level one.
+- **Loading:** skeletons sized to the content (`components/skeletons.tsx`), replacing the "Loading…" lines. Each is a `role="status"` region marked `aria-busy`, with the placeholders hidden from screen readers.
+- **Empty states:**
+  - **A team before its first season:** HOU 1999–2001 reads "No games in 1999–2001. The Houston Texans' first season was 2002", with a link to the latest seasons, instead of empty tables.
+  - **Explorer and This week:** they already had empty states, which are kept.
+  - **Leaderboard:** a value nobody played in the range (snow, 2026) gets one message instead of 32 "no games" rows, and the league sentence is left out.
+- **Metadata:**
+  - **Team pages:** `generateMetadata` gives the team's name and a description.
+  - **Not-found page:** a title and description.
+  - **The other routes** already had theirs.
+- **Small samples:**
+  - **One helper:** `sampleMeanEstimate` (`web/lib/stats.ts`) applies the below-3-games rule. Margins and totals on team pages, the charts, the explorer and This week all use it.
+  - **What the page says:** where the interval is dropped, the table reads "too few games for a range", the chart drops the whisker, and the bar's accessible name says why.
+  - **Recount** (`pipeline/sql/checks/small_sample_rows.sql`): 154 of 1,252 team-page rows over 2024–26 change. 1,247 were counted on 2026-10-19; the extra rows come from games played since, none with exactly 2 games.
+- **Touch hints:** `Hint` (`components/hint.tsx`) is a Radix tooltip with a mouse and a popover on `(hover: none)` screens. The server renders the tooltip, so hydration matches. `InfoTip`, the league figures, the Shrunk cell and the chart readouts use it.
+- **Checks (local `next start`; screenshots kept outside the repo):**
+  - `check:status`: 18 of 18.
+  - Each route's title and description are in `<head>` for an HTML-limited bot (`facebookexternalhit`).
+  - **Each state shown once:**
+    - the four empty states;
+    - with `docker compose stop db`, the section errors and, before the metadata fallback, `error.tsx`;
+    - "Try again" recovers the teams list after `docker compose start db`.
+  - **This week's empty state:** the 2026 games were marked finished in the local `marts.games` only, then rebuilt from raw with `dbt build --select games` (180 unfinished games again).
+  - **Touch:** headless Chrome emulating a touch phone (390 px, `hover: none`) shows 186 popover triggers and no tooltips, and a tap opens the Shrunk explanation. The browser pane can't check this while it's hidden.
+  - **Regression set:** pytest 52, dbt build PASS=332, ruff clean, lint 0, `tsc` 0, Vitest 125 (11 files), `next build` with the same route table as 1.1 plus `ƒ Proxy`.

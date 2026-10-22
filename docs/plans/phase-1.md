@@ -227,6 +227,8 @@ Phase 0 (pipeline, dbt warehouse, analysis, team research site) is built and liv
 
 ## Step 1.4 — States and polish (to `docs/plans/states-and-caching.md` § 1.4)
 
+> **As built (2026-10-22, Rob's decision).** Task 1's spike failed: the build accepted the structure, but every response was a 200. Team URLs are therefore checked in `web/proxy.ts` against `web/lib/team-codes.json`, and the page streams everything again (no `instant = false`, no temporary wait). The evidence, and the rest of 1.4 as built, are in `docs/decisions.md` ("Team URLs checked in Proxy", "States and polish"). The Done-when is unchanged.
+
 1. **Objective:**
    - a real 404 for unknown team codes, before streaming;
    - a 308 for upper-case codes;

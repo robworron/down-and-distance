@@ -27,6 +27,8 @@ Ideas for later. Not part of the current step.
   - nflfastR's expected-points model already takes in whether the offense is at home, the roof type and the era (Ben Baldwin, "nflfastR EP, WP, CP xYAC, and xPass models", Open Source Football, 2020). So EPA/play splits by venue or roof read near zero by design: over 2016–2025, home teams' net EPA/play was +0.001 while they won by 2.0 points a game.
   - The team pages and the methodology page should say so, so that a flat EPA split isn't read as "no home edge". Weather isn't a model input, so EPA does show wind and rain.
 
+- **Team names on the 404 page (2026-10-22).** The not-found page lists the 32 team codes from `web/lib/team-codes.json`, not names: it's part of every route, so an uncached query there made even the home page query the database on each visit. Once step 1.5 caches `getTeams()`, the names (and badges) can come back without that cost.
+
 ## Tooling and operations
 
 - **npm audit: findings in the dev toolchain (2026-10-17, 2026-10-19).**

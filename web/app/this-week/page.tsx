@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import { Container } from "@/components/container";
+import { SectionError } from "@/components/section-error";
+import { ThisWeekSkeleton } from "@/components/skeletons";
 import { GameCard } from "@/components/this-week/game-card";
 import { EFFECT_SEASONS, FEATURED_GAME_KEYS, FEATURED_TEAM_KEYS, effectId, featuredEffects } from "@/lib/effects";
 import { getLatestSeason, getSeasonLeagueSums, getSituations, getSplitSums, getTeams, getThisWeek } from "@/lib/queries";
@@ -18,9 +20,11 @@ export default function ThisWeekPage() {
   return (
     <main>
       <Container className="py-8">
-        <Suspense fallback={<p className="text-muted-foreground">Loading this week&apos;s games…</p>}>
-          <ThisWeekView />
-        </Suspense>
+        <SectionError what="this week's games">
+          <Suspense fallback={<ThisWeekSkeleton />}>
+            <ThisWeekView />
+          </Suspense>
+        </SectionError>
       </Container>
     </main>
   );

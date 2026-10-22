@@ -1,8 +1,11 @@
 """Data checks on the raw layer, run against DATABASE_URL (local or Neon).
 
     uv run pytest pipeline/tests/test_raw_data.py
+
+One check reads a mart: the site's team-code list against marts.dim_teams.
 """
 
+import json
 import re
 from pathlib import Path
 
@@ -15,6 +18,8 @@ from pipeline.seasons import current_season
 
 CHECKS = Path("pipeline/sql/checks")
 STADIUMS = pd.read_csv("transform/seeds/stadiums.csv")
+# The 32 codes the site's Proxy accepts in /teams/<code> URLs (web/proxy.ts).
+SITE_TEAM_CODES = json.loads(Path("web/lib/team-codes.json").read_text())
 
 
 def expected_regular_season_games(season: int) -> int:
@@ -145,3 +150,15 @@ def test_stadium_timezones_match_coordinates():
         if finder.timezone_at(lat=s.latitude, lng=s.longitude) != s.timezone
     ]
     assert not wrong, f"(stadium, csv zone, zone at coordinates): {wrong}"
+
+
+def test_site_team_codes_match_dim_teams(query):
+    # The site checks team URLs against its own copy of the codes, without a
+    # query per request; this keeps the copy equal to the warehouse's teams.
+    # A relocation or new team fails here before a team page can 404.
+    in_mart = set(query("SELECT team_abbr FROM marts.dim_teams")["team_abbr"])
+    listed = set(SITE_TEAM_CODES)
+    assert len(SITE_TEAM_CODES) == len(listed), "web/lib/team-codes.json repeats a code"
+    assert listed == in_mart, (
+        f"only in web/lib/team-codes.json: {sorted(listed - in_mart)}; only in marts.dim_teams: {sorted(in_mart - listed)}"
+    )

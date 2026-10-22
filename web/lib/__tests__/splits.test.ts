@@ -117,6 +117,19 @@ describe("buildSplits", () => {
     expect(rain.comparison.league.total!.value).toBe(30);
   });
 
+  it("drops a team's margin and total intervals below 3 games", () => {
+    const [none, rain] = build(false)[0].blocks[0].rows;
+    // Rain: 2 games. The figures stay; the intervals go.
+    expect(rain.n).toBe(2);
+    expect(rain.margin).toEqual({ value: 0, ci: null });
+    expect(rain.comparison.level === "game" && rain.comparison.total).toEqual({ value: 30, ci: null });
+    // Win % keeps its Wilson interval at any n.
+    expect(rain.winPct!.ci).not.toBeNull();
+    // No rain: 8 games, so both intervals are there.
+    expect(none.margin!.ci).not.toBeNull();
+    expect(none.comparison.level === "game" && none.comparison.total!.ci).not.toBeNull();
+  });
+
   it("gives no league comparison for a shared value", () => {
     const venue = build(false)[1].blocks[0];
     const [home, , neutral] = venue.rows;

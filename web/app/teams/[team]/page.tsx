@@ -1,7 +1,11 @@
+import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { Container } from "@/components/container";
+import { SectionError } from "@/components/section-error";
+import { TeamPageSkeleton } from "@/components/skeletons";
 import { HeadlineStats } from "@/components/team/headline-stats";
 import { RangeControls } from "@/components/team/range-controls";
 import { SeasonTable } from "@/components/team/season-table";
@@ -18,32 +22,55 @@ import {
 import { winPct } from "@/lib/records";
 import { includes2020, parseSeasonRange, rangeQuery, seasonTypes } from "@/lib/season-range";
 import { buildSplits, teamTotal } from "@/lib/splits";
+import { parseTeamSlug } from "@/lib/team-slug";
 
-export default function TeamPage({ params, searchParams }: PageProps<"/teams/[team]">) {
+type Props = PageProps<"/teams/[team]">;
+
+// Unknown and capitalised team codes never reach this page: Proxy answers
+// them first with a real 404 or 308 (proxy.ts). The checks below are the
+// fallback if it ever didn't run; a 404 from here would stream as a 200 with
+// a noindex tag, which is why Proxy does the real check.
+
+/** Look up the team for a URL segment; null for anything that isn't one. */
+async function teamFor(segment: string) {
+  const slug = parseTeamSlug(segment);
+  return slug.kind === "ok" ? getTeamProfile(slug.abbr) : null;
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const segment = (await params).team;
+  // If the lookup fails, the page body shows its own section error; the
+  // title falls back to the code rather than failing the whole page.
+  const team = await teamFor(segment).catch(() => undefined);
+  if (team === undefined) return { title: segment.toUpperCase() };
+  if (!team) return { title: "Page not found" };
+  return {
+    title: team.name,
+    description: `The ${team.name}' record season by season, and how they do in each game situation (weather, rest, travel, venue) beside the league, with the number of games behind every figure.`,
+  };
+}
+
+export default function TeamPage({ params, searchParams }: Props) {
   return (
     <main>
-      {/* The team code and the season range are only known at request time,
-          so everything that reads them (and queries the database) streams in
-          behind this boundary. */}
-      <Suspense fallback={<Container className="py-8 text-muted-foreground">Loading team…</Container>}>
-        <TeamView params={params} searchParams={searchParams} />
-      </Suspense>
+      {/* The team and the season range are only known at request time, so
+          everything that reads them (and queries the database) streams in
+          behind this boundary. A failed query shows an inline message. */}
+      <SectionError what="this team's page" contained>
+        <Suspense fallback={<TeamPageSkeleton />}>
+          <TeamView params={params} searchParams={searchParams} />
+        </Suspense>
+      </SectionError>
     </main>
   );
 }
 
-async function TeamView({ params, searchParams }: Pick<PageProps<"/teams/[team]">, "params" | "searchParams">) {
-  const [{ team: slug }, query] = await Promise.all([params, searchParams]);
-  if (!/^[a-z]{2,3}$/i.test(slug)) notFound();
-  const abbr = slug.toUpperCase();
-
-  const [team, records, latestSeason, situations] = await Promise.all([
-    getTeamProfile(abbr),
-    getSeasonRecords(abbr),
-    getLatestSeason(),
-    getSituations(),
-  ]);
-  if (!team || latestSeason === null) notFound();
+async function TeamView({ params, searchParams }: Pick<Props, "params" | "searchParams">) {
+  const [team, query] = await Promise.all([params.then((p) => teamFor(p.team)), searchParams]);
+  if (!team) notFound();
+  const abbr = team.abbr;
+  const [records, latestSeason, situations] = await Promise.all([getSeasonRecords(abbr), getLatestSeason(), getSituations()]);
+  if (latestSeason === null) throw new Error("No seasons in marts.games");
 
   // The URL is the page's state: ?from=2023&to=2025&playoffs=1&with2020=1.
   const range = parseSeasonRange(query, latestSeason);
@@ -54,7 +81,7 @@ async function TeamView({ params, searchParams }: Pick<PageProps<"/teams/[team]"
   // viewer keeps it; every other split, and the header, count it.
   const has2020 = includes2020(range);
   const groups = buildSplits({ team: abbr, situations, teamSums, leagueSums, exclude2020: has2020 && !range.with2020 });
-  const basePath = `/teams/${slug.toLowerCase()}`;
+  const basePath = `/teams/${abbr.toLowerCase()}`;
   const toggle2020 = has2020
     ? { included: range.with2020, href: `${basePath}${rangeQuery({ ...range, with2020: !range.with2020 }, latestSeason)}` }
     : null;
@@ -64,6 +91,8 @@ async function TeamView({ params, searchParams }: Pick<PageProps<"/teams/[team]"
     .map((r) => ({ season: r.season, winPct: winPct(r.regular)! }))
     .reverse();
   const span: [number, number] = [range.from, range.to];
+  const total = teamTotal(teamSums, abbr);
+  const firstSeason = spark[0]?.season ?? null;
 
   return (
     <>
@@ -76,9 +105,13 @@ async function TeamView({ params, searchParams }: Pick<PageProps<"/teams/[team]"
         </Container>
       </div>
       <Container>
-        <HeadlineStats total={teamTotal(teamSums, abbr)} range={span} playoffs={range.playoffs} />
+        <HeadlineStats total={total} range={span} playoffs={range.playoffs} />
 
-        <SplitsSection groups={groups} toggle2020={toggle2020} team={team.nick} />
+        {total.games > 0 ? (
+          <SplitsSection groups={groups} toggle2020={toggle2020} team={team.nick} />
+        ) : (
+          <NoGamesInRange team={team.name} span={span} firstSeason={firstSeason} href={basePath} />
+        )}
 
         <section aria-labelledby="season-by-season" className="mt-10">
           <h2 id="season-by-season" className="text-lg font-semibold">
@@ -92,5 +125,29 @@ async function TeamView({ params, searchParams }: Pick<PageProps<"/teams/[team]"
         </section>
       </Container>
     </>
+  );
+}
+
+/** The range holds none of the team's games (e.g. HOU 1999–2001, before the Texans' first season). */
+function NoGamesInRange({
+  team,
+  span,
+  firstSeason,
+  href,
+}: {
+  team: string;
+  span: [number, number];
+  firstSeason: number | null;
+  href: string;
+}) {
+  const seasons = span[0] === span[1] ? `${span[0]}` : `${span[0]}–${span[1]}`;
+  return (
+    <div role="status" className="mt-4 rounded-lg border bg-card p-4">
+      <p className="font-medium">No games in {seasons}.</p>
+      <p className="mt-1 text-sm text-ink-2">
+        {firstSeason !== null && firstSeason > span[1] ? `The ${team}' first season was ${firstSeason}. ` : ""}
+        Pick other seasons above, or <Link href={href}>show the latest seasons</Link>.
+      </p>
+    </div>
   );
 }

@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { ExplorerResult, Record3 } from "@/lib/explorer";
 import { formatCount, formatPct, formatSigned, formatWholePct } from "@/lib/format";
 import { formatRecord } from "@/lib/records";
-import type { Estimate } from "@/lib/stats";
+import { TOO_FEW_FOR_RANGE, type Estimate } from "@/lib/stats";
 
 const plural = (n: number, one: string, many: string) => `${formatCount(n)} ${n === 1 ? one : many}`;
 
@@ -13,7 +13,7 @@ function Figure({ label, value, ci }: { label: string; value: string; ci?: strin
     <div className="flex flex-col">
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className="text-xl font-semibold tracking-tight tabular-nums">{value}</dd>
-      {ci !== undefined && <dd className="text-xs text-muted-foreground tabular-nums">{ci ?? "too few games for a range"}</dd>}
+      {ci !== undefined && <dd className="text-xs text-muted-foreground tabular-nums">{ci ?? TOO_FEW_FOR_RANGE}</dd>}
     </div>
   );
 }

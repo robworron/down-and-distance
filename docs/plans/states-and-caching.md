@@ -29,6 +29,7 @@ Next.js 16.4.1, with `cacheComponents` and `partialPrefetching`. From the bundle
   - Win % intervals (Wilson) are unchanged.
 - **Refresh.** The route calls `revalidateTag('marts', { expire: 0 })`, so the next visit to each page re-renders with fresh data. The nightly job requests the main pages right after the call, so visitors rarely wait.
 - **Real 404.** Checked in the page before any Suspense boundary, not in Proxy, so there's no second copy of the team list to keep in sync.
+  - **Superseded 2026-10-22 (Rob):** in Next 16.4.1 with this app's settings, a page's `notFound()` never set a 404 status, before streaming or not. The check moved to Proxy, with the codes in one file (`web/lib/team-codes.json`) checked against `marts.dim_teams`. See `docs/decisions.md`, "Team URLs checked in Proxy".
 - **Caching:**
   - **Plain `use cache`,** with one tag (`marts`) and one lifetime profile (`marts`). All data changes together after the nightly dbt build.
   - **No `use cache: remote`.** Hobby's allowance for Vercel's runtime cache isn't published (searched 2026-10-19), and going over Hobby limits pauses the project.
@@ -47,6 +48,12 @@ Next.js 16.4.1, with `cacheComponents` and `partialPrefetching`. From the bundle
 ## 1.4 States and polish
 
 **Concept to explain first.** The status code goes out with the first streamed bytes, so checking before the first Suspense boundary gives a real 404. Then come loading, empty and error states, and page metadata.
+
+> **As built (2026-10-22).** The first four bullets under "A real 404 on team pages" were tried and didn't give a 404 (`docs/decisions.md`, "Team URLs checked in Proxy"). Instead:
+> - `web/proxy.ts` (matcher `/teams/:team`) answers before rendering: 308 to the lower-case URL, keeping the query string; anything else that isn't one of the 32 codes is rewritten to a path no route matches, so Next.js renders `app/not-found.tsx` inside the site layout with a real 404.
+> - There's one not-found page, the root one. It says "No team with that code" for `/teams/...` URLs and links all 32 codes; it reads no data, because it's part of every route.
+> - The team page streams everything again, with no `instant = false` and no wait before the first byte; its own slug check is the fallback.
+> The rest of this section was built as written.
 
 - **A real 404 on team pages.**
   - **Check before streaming.** `app/teams/[team]/page.tsx` awaits `params` and validates the slug; an upper-case code gets a `permanentRedirect` (308) to lower case. It awaits `getTeamProfile` before any `<Suspense>`, and calls `notFound()` on null.

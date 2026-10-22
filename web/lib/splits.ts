@@ -6,8 +6,8 @@ import type { Situation, SplitSums, Tier, TeamSplitSums } from "./queries";
 import type { Tally } from "./records";
 import {
   leagueSplit,
-  meanEstimate,
   overPctEstimate,
+  sampleMeanEstimate,
   shrunkWinPct,
   winPctEstimate,
   type Estimate,
@@ -52,8 +52,9 @@ function halve(s: Sums): Sums {
 }
 
 const winPctOf = (s: Sums) => winPctEstimate(s)?.value ?? null;
-const marginOf = (s: Sums) => meanEstimate(s.pointsFor - s.pointsAgainst, s.marginSq, s.games);
-const totalOf = (s: Sums) => meanEstimate(s.pointsFor + s.pointsAgainst, s.totalPointsSq, s.games);
+// Below 3 games the interval is left out (the small-sample rule, lib/stats.ts).
+const marginOf = (s: Sums) => sampleMeanEstimate(s.pointsFor - s.pointsAgainst, s.marginSq, s.games);
+const totalOf = (s: Sums) => sampleMeanEstimate(s.pointsFor + s.pointsAgainst, s.totalPointsSq, s.games);
 
 /** A league figure with the number of games behind it. */
 export type LeagueFigures<T> = T & { n: number };

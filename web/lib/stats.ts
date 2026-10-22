@@ -80,9 +80,21 @@ export function meanEstimate(sum: number, sumSq: number, n: number): Estimate | 
  */
 export const MIN_GAMES_FOR_INTERVAL = 3;
 
+/** What a page shows where the rule leaves an interval out. */
+export const TOO_FEW_FOR_RANGE = "too few games for a range";
+
 /** A mean's estimate with its interval dropped below MIN_GAMES_FOR_INTERVAL games. */
 export function smallSampleRule(e: Estimate | null, n: number): Estimate | null {
   return e && n < MIN_GAMES_FOR_INTERVAL ? { value: e.value, ci: null } : e;
+}
+
+/**
+ * A margin or game total per game, as every page shows it: meanEstimate with
+ * the small-sample rule applied. Use this, not meanEstimate, for a figure on
+ * a page.
+ */
+export function sampleMeanEstimate(sum: number, sumSq: number, n: number): Estimate | null {
+  return smallSampleRule(meanEstimate(sum, sumSq, n), n);
 }
 
 /** One team's games in one value, for the league split. */

@@ -8,6 +8,7 @@ import { formatCount, formatPct, formatSigned, formatWholePct } from "./format";
 import type { Situation, TeamSplitSums, WeekRow } from "./queries";
 import { formatRecord } from "./records";
 import { valueStatsByTeam, type TeamValueStats } from "./splits";
+import { TOO_FEW_FOR_RANGE } from "./stats";
 
 /** A team's own line under a situation: its record and best estimate there. */
 export type TeamLine = { team: string; text: string; href: string };
@@ -127,7 +128,7 @@ export function effectSentence(key: string, value: string, valueLabel: string, e
   const span = "1999–2025";
   if (e.kind === "points") {
     const x = e.effect.value;
-    const ci = e.effect.ci ? `95% CI ${formatSigned(e.effect.ci.low)} to ${formatSigned(e.effect.ci.high)} points` : "";
+    const ci = e.effect.ci ? `95% CI ${formatSigned(e.effect.ci.low)} to ${formatSigned(e.effect.ci.high)} points` : `95% CI: ${TOO_FEW_FOR_RANGE}`;
     const over = e.overDiff === null ? "" : `; over % ${formatSigned(e.overDiff * 100)} points against the league`;
     return {
       text: `${valueLabel}: ${Math.abs(x).toFixed(1)} ${x >= 0 ? "more" : "fewer"} points a game than the average game (${formatCount(e.games)} games, ${span}).`,

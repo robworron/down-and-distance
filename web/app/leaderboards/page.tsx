@@ -3,6 +3,8 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { Container } from "@/components/container";
+import { SectionError } from "@/components/section-error";
+import { LeaderboardSkeleton } from "@/components/skeletons";
 import { InfoTip } from "@/components/info-tip";
 import { BoardForm } from "@/components/leaderboard/board-form";
 import { BoardTable } from "@/components/leaderboard/board-table";
@@ -27,9 +29,11 @@ export default function LeaderboardsPage({ searchParams }: PageProps<"/leaderboa
           follows how good each team is overall.
         </p>
         {/* The choices live in the URL, which is only known at request time. */}
-        <Suspense fallback={<p className="mt-8 text-muted-foreground">Loading the leaderboard…</p>}>
-          <BoardView searchParams={searchParams} />
-        </Suspense>
+        <SectionError what="the leaderboard">
+          <Suspense fallback={<LeaderboardSkeleton />}>
+            <BoardView searchParams={searchParams} />
+          </Suspense>
+        </SectionError>
       </Container>
     </main>
   );
@@ -102,7 +106,9 @@ async function BoardView({ searchParams }: Pick<PageProps<"/leaderboards">, "sea
         </div>
         <p className="max-w-[72ch] text-sm text-ink-2">
           {span}, {range.playoffs ? "regular season and playoffs" : "regular season"}.{" "}
-          {board.league.kind === "win"
+          {board.league.n === 0
+            ? ""
+            : board.league.kind === "win"
             ? `Across the league: ${formatPct(board.league.winPct?.value ?? null)} win % in ${formatCount(board.league.n)} team-games.`
             : `Both teams share this, so across the league one wins and the other loses. Its ${formatCount(board.league.n)} games averaged ${
                 board.league.total ? board.league.total.value.toFixed(1) : "—"
@@ -117,14 +123,24 @@ async function BoardView({ searchParams }: Pick<PageProps<"/leaderboards">, "sea
             </>
           )}
         </p>
-        <p className="text-xs text-muted-foreground md:hidden">Swipe for more columns →</p>
-        <BoardTable
-          ranked={board.ranked}
-          greyed={board.greyed}
-          teams={teamsByAbbr}
-          valueLabel={`${situation.label.toLowerCase()}: ${valueLabel}`}
-          hrefFor={(abbr) => `/teams/${abbr.toLowerCase()}${rangeQuery(range, latest)}#situation-${situation.key}`}
-        />
+        {board.ranked.length === 0 && board.greyed.every((r) => r.n === 0) ? (
+          // Nobody played in this value in these seasons (e.g. snow over a
+          // single season): a table of 32 "no games" rows would say nothing.
+          <p role="status" className="rounded-lg border bg-card p-4 text-sm">
+            No team played a game in this situation in {span}. Try a wider range of seasons or another value.
+          </p>
+        ) : (
+          <>
+            <p className="text-xs text-muted-foreground md:hidden">Swipe for more columns →</p>
+            <BoardTable
+              ranked={board.ranked}
+              greyed={board.greyed}
+              teams={teamsByAbbr}
+              valueLabel={`${situation.label.toLowerCase()}: ${valueLabel}`}
+              hrefFor={(abbr) => `/teams/${abbr.toLowerCase()}${rangeQuery(range, latest)}#situation-${situation.key}`}
+            />
+          </>
+        )}
         <div className="text-xs text-muted-foreground">
           <p>
             Usual: the team&apos;s win % in all its games in these seasons. Win % counts a tie as half a win; the small figures

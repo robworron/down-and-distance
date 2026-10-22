@@ -5,6 +5,8 @@ import { Suspense } from "react";
 import { Container } from "@/components/container";
 import { ExplorerForm } from "@/components/explorer/explorer-form";
 import { ExplorerResults } from "@/components/explorer/explorer-results";
+import { SectionError } from "@/components/section-error";
+import { ExplorerSkeleton } from "@/components/skeletons";
 import {
   buildExplorerResult,
   excludes2020,
@@ -32,9 +34,11 @@ export default function ExplorerPage({ searchParams }: PageProps<"/explorer">) {
           you pick must hold. The small grey figures are 95% confidence intervals: the range the games can&apos;t rule out.
         </p>
         {/* The filters live in the URL, which is only known at request time. */}
-        <Suspense fallback={<p className="mt-8 text-muted-foreground">Loading the explorer…</p>}>
-          <ExplorerView searchParams={searchParams} />
-        </Suspense>
+        <SectionError what="the explorer">
+          <Suspense fallback={<ExplorerSkeleton />}>
+            <ExplorerView searchParams={searchParams} />
+          </Suspense>
+        </SectionError>
       </Container>
     </main>
   );

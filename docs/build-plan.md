@@ -527,10 +527,10 @@ The site is then safe to change and stays fresh while the player features are bu
   - Learn: continuous integration, service containers, why CI never holds production credentials.
   - Done when: `main` is green, and a pull request with a type error and one with a failing pytest both turn red. Rob may also make the check required in the branch settings.
 - [ ] **1.4 States and polish.** Built to the agreed design in `docs/plans/states-and-caching.md`. The player pages reuse these patterns.
-  - A real 404 on unknown team codes (live `/teams/xyz` returns 200 today), checked before streaming.
+  - A real 404 on unknown team codes (live `/teams/xyz` returns 200 today), checked in Proxy before the page renders (a page's own check couldn't set the status: `docs/decisions.md`, 2026-10-22).
   - Error boundaries; empty states; skeleton loading; page titles and descriptions.
   - The small-sample rule; touch-friendly hints.
-  - Learn: why the status code is fixed by the first streamed bytes.
+  - Learn: why the status code is fixed by the first streamed bytes, and what Proxy can do that a page can't.
   - Done when (from the agreed plan):
     - `curl` returns 404 for `/teams/xyz`, 200 for `/teams/buf` and 308 for `/teams/BUF`, both locally and live;
     - each empty and error state is shown once;

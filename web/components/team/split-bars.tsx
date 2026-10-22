@@ -1,9 +1,10 @@
 import { cn } from "cn";
 
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Hint } from "@/components/hint";
 import { formatSigned } from "@/lib/format";
 import { formatRecord } from "@/lib/records";
 import { clipped, toPercent, type Bar, type SplitChart } from "@/lib/split-bars";
+import { TOO_FEW_FOR_RANGE } from "@/lib/stats";
 
 /**
  * Horizontal bars for one situation: the team's margin per game (team-level
@@ -90,7 +91,7 @@ function Row({
   const ci = e?.ci ? `${fmt(e.ci.low)} to ${fmt(e.ci.high)}` : null;
   const games = `${bar.n} ${bar.n === 1 ? "game" : "games"}`;
   const summary = e
-    ? `${bar.label}: ${fmt(e.value)} ${unit}${ci ? `, 95% CI ${ci}` : ""}, ${games}, ${formatRecord(bar.record)}${
+    ? `${bar.label}: ${fmt(e.value)} ${unit}, ${ci ? `95% CI ${ci}` : TOO_FEW_FOR_RANGE}, ${games}, ${formatRecord(bar.record)}${
         bar.league !== null ? `; league ${fmt(bar.league)}` : ""
       }`
     : `${bar.label}: no games${bar.league !== null ? `; league ${fmt(bar.league)}` : ""}`;
@@ -117,26 +118,29 @@ function Row({
     </li>
   );
 
+  const readout = (
+    <>
+      {e ? (
+        <>
+          <span className="text-sm font-semibold tabular-nums">
+            {fmt(e.value)} <span className="text-xs font-normal">{unit}</span>
+          </span>
+          {ci ? <span className="tabular-nums">95% CI {ci}</span> : <span>No range: {TOO_FEW_FOR_RANGE}</span>}
+          <span>
+            {bar.label} · {games} · {formatRecord(bar.record)}
+          </span>
+        </>
+      ) : (
+        <span>{bar.label} · no games</span>
+      )}
+      {bar.league !== null && <span className="tabular-nums">League in this value: {fmt(bar.league)}</span>}
+    </>
+  );
+
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>{row}</TooltipTrigger>
-      <TooltipContent side="top" className="flex-col items-start gap-0.5">
-        {e ? (
-          <>
-            <span className="text-sm font-semibold tabular-nums">
-              {fmt(e.value)} <span className="text-xs font-normal">{unit}</span>
-            </span>
-            {ci && <span className="tabular-nums">95% CI {ci}</span>}
-            <span>
-              {bar.label} · {games} · {formatRecord(bar.record)}
-            </span>
-          </>
-        ) : (
-          <span>{bar.label} · no games</span>
-        )}
-        {bar.league !== null && <span className="tabular-nums">League in this value: {fmt(bar.league)}</span>}
-      </TooltipContent>
-    </Tooltip>
+    <Hint content={readout} side="top" className="flex-col items-start gap-0.5">
+      {row}
+    </Hint>
   );
 }
 

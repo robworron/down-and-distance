@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   leagueSplit,
   meanEstimate,
+  MIN_GAMES_FOR_INTERVAL,
   overPctEstimate,
+  sampleMeanEstimate,
   shrunkWinPct,
   tQuantile975,
   wilson,
@@ -69,6 +71,25 @@ describe("meanEstimate", () => {
   it("has a mean but no interval for one game, and nothing for none", () => {
     expect(meanEstimate(7, 49, 1)).toEqual({ value: 7, ci: null });
     expect(meanEstimate(0, 0, 0)).toBeNull();
+  });
+});
+
+describe("the small-sample rule", () => {
+  // Margins 3 and -7 (2 games), then 3, -7 and 10 (3 games).
+  it("keeps the mean but drops the interval below 3 games", () => {
+    expect(MIN_GAMES_FOR_INTERVAL).toBe(3);
+    expect(meanEstimate(-4, 58, 2)!.ci).not.toBeNull();
+    expect(sampleMeanEstimate(-4, 58, 2)).toEqual({ value: -2, ci: null });
+    expect(sampleMeanEstimate(7, 49, 1)).toEqual({ value: 7, ci: null });
+  });
+
+  it("keeps the interval from 3 games", () => {
+    expect(sampleMeanEstimate(6, 158, 3)).toEqual(meanEstimate(6, 158, 3));
+    expect(sampleMeanEstimate(6, 158, 3)!.ci).not.toBeNull();
+  });
+
+  it("gives nothing for no games", () => {
+    expect(sampleMeanEstimate(0, 0, 0)).toBeNull();
   });
 });
 

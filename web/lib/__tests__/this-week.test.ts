@@ -83,6 +83,8 @@ describe("formatting", () => {
     const dome = effectSentence("roof", "dome", "Dome", { kind: "points", games: 1138, effect: { value: 2.84, ci: { low: 2.0, high: 3.6 } }, overDiff: 0.022 });
     expect(dome?.text).toBe("Dome: 2.8 more points a game than the average game (1,138 games, 1999–2025).");
     expect(dome?.detail).toBe("95% CI +2.0 to +3.6 points; over % +2.2 points against the league");
+    const few = effectSentence("roof", "dome", "Dome", { kind: "points", games: 2, effect: { value: 1, ci: null }, overDiff: null });
+    expect(few?.detail).toBe("95% CI: too few games for a range");
   });
 });
 
