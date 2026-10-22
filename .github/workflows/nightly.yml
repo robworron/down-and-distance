@@ -90,6 +90,13 @@ jobs:
       - name: Install Python and dependencies
         run: uv sync --locked
 
+      # Before anything touches a database: refuse a DATABASE_URL that points
+      # at the runner itself (localhost, a loopback address, a local socket),
+      # as when the production secret once held the local URL. It prints the
+      # kind of problem only, never the URL.
+      - name: Check the database target
+        run: uv run python -m pipeline.check_target
+
       # Open-Meteo answers are cached on disk; restoring them means a run only
       # fetches games it hasn't seen. Saved again at the end, even on failure.
       - name: Restore the weather cache

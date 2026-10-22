@@ -934,5 +934,35 @@ Step 1.6, decisions D4 and D6 of the Phase 1 plan, with the plan's candidate bui
   - **It covers raw only.** The seeds and the dbt code come from the one checkout both builds run from, so they can't differ between them.
   - **Before the lock it says nothing.** Raw changes between the end of `ingest` and the lock are allowed, and the gate and candidate test whatever raw is there.
   - **The row counts aren't the values.** The nightly compares the marts' row counts with the candidate's; only `--compare` (rehearsals) compares every value, floats within a relative 1e-9.
+- **Defects the test-target rehearsals found, each fixed inside the step:**
+  1. **Open-Meteo timed out from GitHub's runners** (`47ca442`).
+     - **Seen:** 60 s timeouts on two runs in a row, where the same uncached request took 0.87 s from here.
+     - **Fix:** the fetch retries timeouts, connection errors and 5xx answers, up to 4 attempts, 2/4/8 s apart, 90 s each. A 429 still stops at once, and the worst case is about 6 minutes, not a wait for every stadium.
+     - **Result:** on the next run, 8 timeouts were each recovered on attempt 2 or 3. Later runs needed none, because the runner restores the weather cache those runs saved.
+  2. **The run-record connection went stale** (`1252602`).
+     - **Seen:** during that 13-minute fetch, Neon ended the run log's idle connection (`AdminShutdown`). The next record write crashed ingest with Python's exit 1, so the workflow published without pbp, and the run stayed `running`.
+     - **Fix:** each record write opens its own short connection, and a record that can't be written is exit 2 (no publish).
+  3. **There was no way to compare or inspect the test branch** (`bef6452`). `nightly.yml` gained a `compare` input and two read-only log steps (`pipeline/report.py`): mart identities before and after, and the run's records.
+  4. **The production secret held the local URL.** The first manual production run failed on its first database step (connection refused on port 15432), before any ingest. Neon and the site were untouched. Rob replaced the secret, and the next production run was green.
+- **Safeguard: the nightly job's database target** (Rob's request after defect 4).
+  - **Where:** `pipeline/check_target.py` runs as the workflow's "Check the database target" step, after Python is installed and before every step that touches a database.
+  - **What it refuses**, for both environments:
+    - a URL with no host, or a socket path (a local socket);
+    - `localhost` in any spelling, or a name ending `.localhost`;
+    - `127.0.0.0/8`, `::1`, IPv4-mapped `::ffff:127.x.x.x`, `0.0.0.0` and `::`;
+    - any host named in libpq's `host=` / `hostaddr=` options, or in a comma-separated host list;
+    - a hostname that resolves to a loopback address, or doesn't resolve.
+  - **What it prints:** the kind of problem only, as a GitHub `::error::` annotation, never any part of the URL.
+  - **Tests** (`test_check_target.py`, 32): every case above with a fake resolver (no DNS), plus a check that the URL, user, password, host and port never appear in the output.
+  - **Checked on the real `.env` values:** the local URL is refused ("host is localhost"); `NEON_DATABASE_URL` and `WEB_READER_DATABASE_URL` pass.
+  - **Untouched:** the publish logic.
+- **Outstanding: the 404 page's freshness stamp can lag after a refresh.**
+  - **Observed** on 2026-10-22, after the green manual production run's refresh at 18:02 UTC, which moved every main page's stamp to `18:00:36Z`:
+    - `/teams/xyz` and `/nope` still showed `16:55:51Z`;
+    - Vercel served them from its edge cache (`X-Vercel-Cache: HIT`, `Age` 20–27 s and climbing), so they had been re-cached with the old footer.
+    - Locally, the same refresh did update the 404 page (R8), so this is how Vercel caches the 404 response.
+  - **What is affected:** only the 404 page's footer stamp. Its content and its 404 status are correct, and `refresh --expect-stamp` checks the 6 main pages, not the 404 page.
+  - **How long it lasts is not established.** The not-found route's 1-day `revalidate` might bound it, but that hasn't been observed, so no bound is claimed. It's rechecked after each scheduled run until the behaviour is measured.
+  - **Why it's outstanding rather than fixed:** the evidence so far shows nothing more serious than a stale stamp on an error page.
 - **Production steps** (Neon expand, test-target rehearsals, the first production run and the first scheduled run) are recorded below once they've run.
 - **Why:** the plan's publishing safeguard, now with its lock tested. Every published mart was built from the same frozen raw rows as a candidate that passed every test; a failure anywhere before the real build leaves the marts exactly as they were; and the stamp, the refresh and the run records make each night's outcome visible.

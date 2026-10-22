@@ -66,6 +66,7 @@ Run from the repo root unless noted. Anything local needs Docker Desktop running
 - **Nightly job:** `.github/workflows/nightly.yml` runs ingest, publish and (production only, after a publish) `refresh --expect-stamp`; the last step fails the run if any stage failed.
   - **When:** daily at 09:30 UTC, only while the repository variable `NIGHTLY_SCHEDULE` is `on` (delete it to stop the schedule), and by hand from the Actions tab.
   - **Where:** each run uses the GitHub Environment named by its `target` input: `production` (`DATABASE_URL` = the Neon production owner URL, `REVALIDATE_SECRET`; `main` only) or `test` (`DATABASE_URL` = the Neon `nightly-test` branch's owner URL). `SITE_URL` is a repository variable.
+  - **Target check:** before any database step, `pipeline/check_target.py` refuses a `DATABASE_URL` that points at the runner itself (localhost, a loopback address, a local socket), printing the kind of problem only.
   - **Failure rehearsals:** `simulate_failure` (weather, schedules, dbt_test) is refused unless the target is `test`. Never simulate a failure on production.
   - **Run records:** `pipeline/sql/checks/latest_run_loads.sql` shows what the last run did; `marts_table_oids.sql` shows whether the marts were replaced.
 - **Weather cache:** `pipeline/.cache/open-meteo/` (gitignored). Without it, a `--full` run refetches about 6,000 games (around 90 minutes, paced to Open-Meteo's free tier).
