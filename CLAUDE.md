@@ -18,7 +18,7 @@ Rob is an honours CS grad, fluent in Next.js/React/TypeScript/Tailwind, with bas
 - After each step:
   1. Run its "Done when" check and show the result.
   2. Commit with a message starting with the step label, e.g. `2.3: load weekly player stats`, and push.
-  3. Tick the step's box in `docs/build-plan.md` (same commit).
+  3. Tick the step's box in `docs/build-plan.md` (same commit). When part of the Done-when can only be checked after the push (a GitHub run, the live site, Neon), the box is ticked with that evidence in one docs-only follow-up commit, `x.y: record checks`, once every check passes (`docs/decisions.md`, 2026-10-21).
 - Never start a step while the previous step's "Done when" check fails.
 - Keep changes inside the current step. Ideas for later go in `docs/parking-lot.md`, not into the code.
 - If a website shows a bot check or blocks automated access, don't try other ways to fetch it (another tool, URL or request). Switch to another source, and say which.
@@ -77,7 +77,7 @@ Run from the repo root unless noted. Anything local needs Docker Desktop running
   - **Figures:** `save_figure` writes `docs/figures/<name>.png`, which `docs/findings.md` and the later README and write-up embed. Load the `dataviz` skill before writing chart code.
   - **The analysis rules** (seasons, baselines, the keep rule) and their dated amendments are in `docs/decisions.md`. Notebooks 04 and 06 pin the 13 pre-registered situations (`PHASE3_SITUATIONS`), so later registry rows don't change them.
 - **Reference:**
-  - `docs/plans/` holds detailed plans agreed for upcoming steps, linked from the build plan. `states-and-caching.md` is the agreed design for steps 1.4 and 1.5. Read the current plan before starting its step; `decisions.md` still wins where they disagree.
+  - `docs/plans/` holds detailed plans agreed for upcoming steps, linked from the build plan. `phase-1.md` is the agreed plan for Phase 1 (steps 1.1–1.6), and `states-and-caching.md` the agreed design for steps 1.4 and 1.5. Read the current plan before starting its step; `decisions.md` still wins where they disagree.
   - `docs/data-model.md` describes every table, its checks and the weather rules.
   - `docs/findings.md` holds the team situation analysis and the v1 situation verdicts: which situations are featured, which are filters, which were trimmed (`in_v1` false in `transform/seeds/situations.csv`).
 

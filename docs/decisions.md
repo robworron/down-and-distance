@@ -14,6 +14,11 @@ The project's technical decisions and the reasons for them, grouped by area and 
 - **Changed:** Claude Code writes all code, including SQL, statistics and analysis, and walks Rob through each SQL- or analysis-heavy step clause by clause afterwards. No step is set as an exercise for Rob. Judgment calls the plan doesn't settle (bucket definitions, data corrections, scope changes) are a hand-back: options with counts and a recommendation. `pipeline/sql/checks` are simply "SQL checks". Reconfirmed by Rob on 2026-10-21.
 - **Why:** Rob would rather keep the build moving and be able to explain finished, working code in interviews. This completes the 2026-10-16 change.
 
+### 2026-10-21 — Evidence commits for checks made after the push
+
+- **Changed:** when part of a step's Done-when can only be checked after the code is pushed (a GitHub Actions run, the live site, Neon), the code goes in the step's commit and the box is ticked, with that evidence, in one docs-only follow-up commit labelled `x.y: record checks`, once every check passes. A fix in between is another commit with the same step label. Steps fully checkable before the push stay one commit. `CLAUDE.md` and the build plan's "How we work" are updated to match.
+- **Why:** a box is ticked only after its Done-when has passed, and the evidence is kept in the repo. Decision D1 of the Phase 1 plan (`docs/plans/phase-1.md`, agreed with Rob); that plan's other decisions are recorded here as their steps land.
+
 ## Environment and tooling
 
 ### 2026-10-15 — Python 3.13, not the latest

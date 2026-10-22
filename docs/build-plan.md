@@ -73,7 +73,7 @@ Every step is one small change that we build, verify and commit before the next 
 - Before Claude Code writes anything, it explains the step's concept in 2–4 plain sentences.
 - Claude Code writes all code, SQL, statistics and analysis included.
 - After every SQL- or analysis-heavy step, Claude walks Rob through what was built, clause by clause, so he can explain it in interviews.
-- One commit per step, starting with the step label, e.g. `2.3: load weekly player stats`. The step's box is ticked in the same commit.
+- One commit per step, starting with the step label, e.g. `2.3: load weekly player stats`. The step's box is ticked in the same commit, or, when part of the Done-when can only be checked after the push, in one docs-only follow-up commit `x.y: record checks` with that evidence.
 - Judgment calls the plan doesn't settle are handed to Rob, with options, counts and a recommendation. Examples: scoring edge cases, participation rules, data corrections.
 - Production changes go expand → deploy → contract. Stop for Rob before each Neon or Vercel step.
 - Secrets live in `.env` files and GitHub secrets, never in the repo or the logs. `.env.example` lists the names only.
@@ -494,6 +494,8 @@ Role:
 - no automation, so production is already stale.
 
 The site is then safe to change and stays fresh while the player features are built.
+
+**Detailed plan:** `docs/plans/phase-1.md`, agreed with Rob on 2026-10-21. It sets out each step's tasks, files, tests, safeguards and approvals; `docs/decisions.md` still wins where they disagree.
 
 - [x] **1.1 Baseline checks.**
   - With Docker running:
