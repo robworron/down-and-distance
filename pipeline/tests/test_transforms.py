@@ -2,10 +2,19 @@
 
 import pandas as pd
 import pytest
+import requests
 
 from pipeline.corrections import apply_schedule_corrections, load_corrections
 from pipeline.load_pbp import INTEGER_COLUMNS, PBP_COLUMNS, compact
-from pipeline.load_weather import game_weather, kickoff_hour, kickoff_utc
+from pipeline.load_weather import (
+    FETCH_ATTEMPTS,
+    FETCH_TIMEOUT_SECONDS,
+    RateLimited,
+    game_weather,
+    get_with_retries,
+    kickoff_hour,
+    kickoff_utc,
+)
 from pipeline.run_dbt import dbt_env
 from pipeline.seasons import parse_seasons
 
@@ -124,3 +133,63 @@ def test_schedule_corrections_seed_is_well_formed():
     seed = load_corrections()
     assert not seed.duplicated(["game_id", "column_name"]).any()
     assert set(seed["column_name"]) <= {"gametime", "stadium_id", "roof"}
+
+
+# --- the weather fetch's retries (step 1.6) ------------------------------------------
+
+
+class _Answer:
+    def __init__(self, status: int, body: dict | None = None):
+        self.status_code, self._body, self.text = status, body or {}, "rate limited"
+
+    def json(self):
+        return self._body
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise requests.HTTPError(f"{self.status_code}", response=self)
+
+
+def _fetcher(*answers):
+    """A fake requests.get: each answer in turn (an exception class is raised)."""
+    calls = []
+
+    def get(url, **kwargs):
+        calls.append(kwargs["timeout"])
+        answer = answers[min(len(calls), len(answers)) - 1]
+        if isinstance(answer, type):
+            raise answer("slow")
+        return answer
+
+    get.calls = calls
+    return get
+
+
+def test_weather_fetch_retries_timeouts_then_succeeds():
+    waits = []
+    get = _fetcher(requests.Timeout, requests.ConnectionError, _Answer(200, {"ok": 1}))
+    assert get_with_retries("u", {}, get=get, sleep=waits.append) == {"ok": 1}
+    assert waits == [2.0, 4.0] and get.calls == [FETCH_TIMEOUT_SECONDS] * 3
+
+
+def test_weather_fetch_retries_a_5xx():
+    waits = []
+    assert get_with_retries("u", {}, get=_fetcher(_Answer(503), _Answer(200, {"ok": 1})), sleep=waits.append) == {"ok": 1}
+    assert waits == [2.0]
+
+
+def test_weather_fetch_gives_up_after_4_attempts():
+    waits = []
+    get = _fetcher(requests.Timeout)
+    with pytest.raises(requests.Timeout):
+        get_with_retries("u", {}, get=get, sleep=waits.append)
+    assert len(get.calls) == FETCH_ATTEMPTS == 4 and waits == [2.0, 4.0, 8.0]
+
+
+def test_weather_fetch_never_retries_a_rate_limit_or_a_4xx():
+    waits = []
+    with pytest.raises(RateLimited):
+        get_with_retries("u", {}, get=_fetcher(_Answer(429)), sleep=waits.append)
+    with pytest.raises(requests.HTTPError):
+        get_with_retries("u", {}, get=_fetcher(_Answer(400)), sleep=waits.append)
+    assert waits == []

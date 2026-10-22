@@ -41,6 +41,13 @@ ARCHIVE_LAG_DAYS = 7
 # more than 14 days counts as one call per 14 days. Pacing each request by
 # its weight keeps us near 4,000 an hour.
 SECONDS_PER_CALL = 0.9
+# A slow or failed answer (a timeout, a dropped connection, a 5xx) is tried
+# again: up to 4 attempts, waiting 2, 4 and 8 seconds between them. If all
+# fail, the error ends the weather load for this run (about 6 minutes at
+# worst, not a wait for every stadium). A 429 is not retried: see RateLimited.
+FETCH_ATTEMPTS = 4
+FETCH_BACKOFF_SECONDS = 2.0
+FETCH_TIMEOUT_SECONDS = 90
 
 
 class RateLimited(Exception):
@@ -107,25 +114,18 @@ def fetch(stadium_id: str, season: int, lat: float, lon: float, start: date, end
     if path.exists():
         return json.loads(path.read_text(encoding="utf-8"))
 
-    response = requests.get(
-        ARCHIVE_URL,
-        params={
-            "latitude": lat,
-            "longitude": lon,
-            "start_date": start.isoformat(),
-            "end_date": end.isoformat(),
-            "hourly": ",".join(HOURLY),
-            "temperature_unit": "fahrenheit",
-            "wind_speed_unit": "mph",
-            "precipitation_unit": "inch",
-            "timezone": "GMT",
-        },
-        timeout=60,
-    )
-    if response.status_code == 429:
-        raise RateLimited(response.text)
-    response.raise_for_status()
-    data = response.json()
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+        "hourly": ",".join(HOURLY),
+        "temperature_unit": "fahrenheit",
+        "wind_speed_unit": "mph",
+        "precipitation_unit": "inch",
+        "timezone": "GMT",
+    }
+    data = get_with_retries(ARCHIVE_URL, params)
 
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     # A season in progress leaves older, shorter responses behind; drop them.
@@ -136,6 +136,25 @@ def fetch(stadium_id: str, season: int, lat: float, lon: float, start: date, end
     days = (end - start).days + 1
     time.sleep(SECONDS_PER_CALL * -(-days // 14))  # ceil(days / 14) calls
     return data
+
+
+def get_with_retries(url: str, params: dict, get=requests.get, sleep=time.sleep) -> dict:
+    """GET JSON, retrying timeouts, connection errors and 5xx answers (FETCH_ATTEMPTS in all)."""
+    for attempt in range(1, FETCH_ATTEMPTS + 1):
+        try:
+            response = get(url, params=params, timeout=FETCH_TIMEOUT_SECONDS)
+            if response.status_code == 429:
+                raise RateLimited(response.text)
+            response.raise_for_status()
+            return response.json()
+        except (requests.Timeout, requests.ConnectionError, requests.HTTPError) as error:
+            server_side = not isinstance(error, requests.HTTPError) or error.response is None or error.response.status_code >= 500
+            if not server_side or attempt == FETCH_ATTEMPTS:
+                raise
+            wait = FETCH_BACKOFF_SECONDS * 2 ** (attempt - 1)
+            log.warning("Open-Meteo: %s on attempt %d of %d; retrying in %.0f s", type(error).__name__, attempt, FETCH_ATTEMPTS, wait)
+            sleep(wait)
+    raise AssertionError("unreachable")
 
 
 def game_weather(games: pd.DataFrame, data: dict) -> pd.DataFrame:
