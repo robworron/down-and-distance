@@ -2,9 +2,11 @@
 (one row per table each run loaded). The nightly job and marts.data_freshness
 read them.
 
-Written on their own autocommit connection, so a record survives whatever
-happens to the load it describes, and never inside `pipeline publish`, whose
-lock on raw would make the write wait on itself.
+Each write opens its own short autocommit connection, so a record survives
+whatever happens to the load it describes, and a long quiet spell (a slow
+weather fetch while Neon suspends its idle compute) can't leave a stale
+connection behind. Never written inside `pipeline publish`, whose lock on
+raw would make the write wait on itself.
 """
 
 import re
@@ -48,7 +50,11 @@ class RunLog:
 
     def __init__(self, url: str | None = None, schema: str = "raw"):
         self.schema = schema
-        self.conn = psycopg.connect(url or database_url(), autocommit=True)
+        self.url = url or database_url()
+
+    def _execute(self, query, params=None) -> None:
+        with psycopg.connect(self.url, autocommit=True) as conn:
+            conn.execute(query, params)
 
     def _table(self, name: str) -> sql.Identifier:
         return sql.Identifier(self.schema, name)
@@ -58,11 +64,11 @@ class RunLog:
         text = RUN_RECORDS_SQL.read_text(encoding="utf-8")
         if self.schema != "raw":
             text = text.replace("raw.", f"{self.schema}.").replace("SCHEMA IF NOT EXISTS raw", f"SCHEMA IF NOT EXISTS {self.schema}")
-        self.conn.execute(text)
+        self._execute(text)
 
     def start_run(self, trigger: str, target: str, git_sha: str | None) -> uuid.UUID:
         """Mark runs left 'running' for 3 hours as abandoned, then open this one."""
-        self.conn.execute(
+        self._execute(
             sql.SQL(
                 "UPDATE {t} SET status = 'abandoned', finished_at = now() "
                 "WHERE status = 'running' AND started_at < now() - %s::interval"
@@ -70,7 +76,7 @@ class RunLog:
             [STALE_AFTER],
         )
         run_id = uuid.uuid4()
-        self.conn.execute(
+        self._execute(
             sql.SQL("INSERT INTO {t} (run_id, trigger, target, git_sha) VALUES (%s, %s, %s, %s)").format(t=self._table("pipeline_runs")),
             [run_id, trigger, target, git_sha],
         )
@@ -87,7 +93,7 @@ class RunLog:
         error: BaseException | None,
     ) -> None:
         counts = (result.inserted, result.updated, result.unchanged, result.deleted) if result else (None,) * 4
-        self.conn.execute(
+        self._execute(
             sql.SQL(
                 "INSERT INTO {t} (run_id, table_name, seasons, status, rows_inserted, rows_updated, rows_unchanged, "
                 "rows_deleted, error, nflreadpy_version, started_at, finished_at) "
@@ -107,10 +113,10 @@ class RunLog:
         )
 
     def finish_run(self, run_id: uuid.UUID, status: str) -> None:
-        self.conn.execute(
+        self._execute(
             sql.SQL("UPDATE {t} SET status = %s, finished_at = now() WHERE run_id = %s").format(t=self._table("pipeline_runs")),
             [status, run_id],
         )
 
     def close(self) -> None:
-        self.conn.close()
+        """Nothing to close: every write used its own connection."""

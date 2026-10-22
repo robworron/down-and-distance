@@ -27,8 +27,11 @@ import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 
+import psycopg
+
 from pipeline import load_pbp, load_schedule, load_teams, load_weather
 from pipeline.db import UpsertResult, is_local_database
+from pipeline.runs import sanitize_error
 from pipeline.seasons import current_season, parse_seasons
 
 log = logging.getLogger("pipeline")
@@ -88,7 +91,19 @@ def ingest(
     target: str,
     simulate_failure: str | None = None,
 ) -> int:
-    """Load each chosen table on its own, recording every outcome; returns an exit code."""
+    """Load each chosen table on its own, recording every outcome; returns an exit code.
+
+    A run record that can't be written is exit 2, like a schedules failure:
+    the nightly job doesn't publish what it can't account for.
+    """
+    try:
+        return _ingest(only, loaders, runs, trigger, target, simulate_failure)
+    except psycopg.Error as e:
+        log.error("run records couldn't be written: %s", sanitize_error(e))
+        return EXIT_REQUIRED_FAILED
+
+
+def _ingest(only, loaders, runs, trigger, target, simulate_failure) -> int:
     run_id = runs.start_run(trigger, target, git_sha())
     failed: list[str] = []
     for table in TABLES:
@@ -170,8 +185,6 @@ def main() -> None:
         runs = RunLog()
         runs.ensure_tables()
     except Exception as e:  # noqa: BLE001 (without run records the run can't be trusted: stop, exit 2)
-        from pipeline.runs import sanitize_error
-
         log.error("can't write run records: %s", sanitize_error(e))
         sys.exit(EXIT_REQUIRED_FAILED)
 

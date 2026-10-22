@@ -130,9 +130,28 @@ def test_only_loads_the_chosen_tables():
     assert [t for t, *_ in runs.loads] == ["teams"]
 
 
+class BrokenRuns(FakeRuns):
+    """Neon ended the connection: writing a run record fails."""
+
+    def record_load(self, *args):
+        raise psycopg.errors.AdminShutdown("terminating connection due to administrator command")
+
+
+def test_a_run_record_that_cant_be_written_is_exit_2():
+    # Exit 2, not a crash: the nightly job then skips publishing.
+    assert ingest(ALL, fake_loaders(), BrokenRuns(), "local", "local") == EXIT_REQUIRED_FAILED
+
+
 # --- the real tables, in a throwaway schema --------------------------------------
 
 local = pytest.mark.skipif(not is_local_database(), reason="writes tables; local database only")
+
+
+def q(query, params=None):
+    """Run SQL on a fresh connection; the rows, or [] for a statement."""
+    with psycopg.connect(database_url(), autocommit=True) as c:
+        cur = c.execute(query, params)
+        return cur.fetchall() if cur.description else []
 
 
 @pytest.fixture
@@ -141,8 +160,7 @@ def runlog():
     log = RunLog(schema=schema)
     log.ensure_tables()
     yield log
-    log.conn.execute(f"DROP SCHEMA IF EXISTS {schema} CASCADE")
-    log.close()
+    q(f"DROP SCHEMA IF EXISTS {schema} CASCADE")
 
 
 @pytest.mark.local_only
@@ -155,9 +173,9 @@ def test_records_a_run_and_its_loads(runlog):
     log.record_load(run_id, "schedules", [2026], t, t, UpsertResult(1, 2, 3, 0), None)
     log.record_load(run_id, "game_weather", [2026], t, t, None, RuntimeError("password=hunter2 at postgresql://u:p@h/db"))
     log.finish_run(run_id, "partial")
-    run = log.conn.execute(f"SELECT status, finished_at IS NOT NULL, git_sha FROM {log.schema}.pipeline_runs").fetchone()
+    run = q(f"SELECT status, finished_at IS NOT NULL, git_sha FROM {log.schema}.pipeline_runs")[0]
     assert run == ("partial", True, "abc123")
-    loads = log.conn.execute(f"SELECT table_name, status, rows_updated, error, seasons FROM {log.schema}.source_loads ORDER BY 1").fetchall()
+    loads = q(f"SELECT table_name, status, rows_updated, error, seasons FROM {log.schema}.source_loads ORDER BY 1")
     assert loads[0][:3] == ("game_weather", "failed", None) and "hunter2" not in loads[0][3] and "<url>" in loads[0][3]
     assert loads[1] == ("schedules", "success", 2, None, [2026])
 
@@ -167,7 +185,7 @@ def test_records_a_run_and_its_loads(runlog):
 def test_constraints_refuse_bad_rows(runlog):
     log = runlog
     with pytest.raises(errors.CheckViolation):
-        log.conn.execute(f"INSERT INTO {log.schema}.pipeline_runs (run_id, trigger, target, status) VALUES (%s, 'x', 'y', 'done')", [uuid.uuid4()])
+        q(f"INSERT INTO {log.schema}.pipeline_runs (run_id, trigger, target, status) VALUES (%s, 'x', 'y', 'done')", [uuid.uuid4()])
     with pytest.raises(errors.ForeignKeyViolation):  # a load must belong to a recorded run
         log.record_load(uuid.uuid4(), "teams", None, datetime.now(UTC), datetime.now(UTC), None, None)
     run_id = log.start_run("local", "local", None)
@@ -183,14 +201,22 @@ def test_a_run_left_running_for_3_hours_is_marked_abandoned(runlog):
     log = runlog
     old = log.start_run("schedule", "test", None)
     recent = log.start_run("schedule", "test", None)
-    log.conn.execute(f"UPDATE {log.schema}.pipeline_runs SET started_at = now() - interval '4 hours' WHERE run_id = %s", [old])
+    q(f"UPDATE {log.schema}.pipeline_runs SET started_at = now() - interval '4 hours' WHERE run_id = %s", [old])
     log.start_run("schedule", "test", None)  # the next run tidies up
-    statuses = dict(log.conn.execute(f"SELECT run_id, status FROM {log.schema}.pipeline_runs").fetchall())
+    statuses = dict(q(f"SELECT run_id, status FROM {log.schema}.pipeline_runs"))
     assert statuses[old] == "abandoned"
     assert statuses[recent] == "running"  # under 3 hours: maybe still going
 
 
 @pytest.mark.local_only
 @local
-def test_runlog_reads_database_url_by_default():
-    assert RunLog().conn.info.dbname == psycopg.conninfo.conninfo_to_dict(database_url()).get("dbname")
+def test_runlog_reads_database_url_and_keeps_no_connection_open(runlog):
+    assert RunLog().url == database_url()
+    # Each write opens and closes its own connection, so nothing sits idle
+    # for Neon to end during a slow load (found in the test-target rehearsal).
+    def mine():
+        return q("SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid()")[0][0]
+
+    before = mine()
+    runlog.start_run("local", "local", None)
+    assert mine() == before
