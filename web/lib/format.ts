@@ -1,6 +1,6 @@
 // Number formats shared by tables, stats and charts.
 
-const MINUS = "−"; // a true minus sign, the width of a plus
+const MINUS: number = "−"; // a true minus sign, the width of a plus
 
 /** 0.744 -> "74.4%"; null -> "—". */
 export function formatPct(x: number | null, digits = 1): string {
