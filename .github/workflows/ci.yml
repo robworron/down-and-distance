@@ -1,0 +1,117 @@
+# Pull-request checks: lint, type-check and test the pipeline and the site on
+# every pull request and every push to main. A failing step turns the run red.
+#
+# CI holds no secrets and never reaches production. The Python job's database
+# is a throwaway Postgres container that exists only for the run, so its
+# connection string isn't a secret. `next build` is left to Vercel, because
+# the cached pages (step 1.5) need the database at build time.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# The workflow only reads the repository.
+permissions:
+  contents: read
+
+# A new push to the same branch or pull request cancels the run it replaces.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    # A Postgres 18 container next to the runner, like the local Docker one.
+    # The health check makes the job wait until it accepts connections.
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    # localhost, so is_local_database() lets the local_only tests run.
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+
+      # --locked fails if uv.lock is out of date with pyproject.toml.
+      - name: Install Python and dependencies
+        run: uv sync --locked
+
+      - name: Lint (ruff)
+        run: uv run ruff check
+
+      # test_raw_data.py checks the loaded data, which CI doesn't have.
+      - name: Tests (pytest)
+        run: uv run pytest --ignore=pipeline/tests/test_raw_data.py
+
+      # The two raw-data checks that read only the stadium seed.
+      - name: Seed checks (pytest)
+        run: >-
+          uv run pytest
+          "pipeline/tests/test_raw_data.py::test_open_air_list_matches_seed"
+          "pipeline/tests/test_raw_data.py::test_stadium_timezones_match_coordinates"
+
+      # Catches Jinja, YAML and ref errors in the dbt project. It doesn't run
+      # any SQL, so SQL errors still surface only in a real dbt build.
+      - name: dbt parse
+        run: uv run python -m pipeline dbt parse
+
+  web:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (ESLint)
+        run: npm run lint
+
+      # Pages use the global PageProps types Next.js generates; they aren't
+      # committed (next-env.d.ts is gitignored), so generate them first.
+      - name: Generate route types
+        run: npx next typegen
+
+      - name: Type-check (tsc)
+        run: npx tsc --noEmit
+
+      - name: Unit tests (Vitest)
+        run: npm test

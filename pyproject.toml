@@ -19,6 +19,7 @@ dev = [
     "jupyter>=1.1.1",
     "matplotlib>=3.11.2",
     "pytest>=9.1.1",
+    "ruff>=0.17.1",
     "statsmodels>=0.15.0",
     "timezonefinder>=9.0.0",
 ]
@@ -27,3 +28,8 @@ dev = [
 testpaths = ["pipeline/tests"]
 pythonpath = ["."]
 markers = ["local_only: creates and drops tables, so runs only against the local database"]
+
+[tool.ruff]
+# Notebooks keep their committed outputs in step with the code that made them,
+# so they aren't linted (decision D2 of the Phase 1 plan).
+extend-exclude = ["notebooks"]

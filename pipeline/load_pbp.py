@@ -18,7 +18,12 @@ import logging
 import nflreadpy as nfl
 import pandas as pd
 
-from pipeline.db import UpsertResult, get_connection, nflverse_to_pandas, upsert_dataframe
+from pipeline.db import (
+    UpsertResult,
+    get_connection,
+    nflverse_to_pandas,
+    upsert_dataframe,
+)
 from pipeline.seasons import parse_seasons
 
 log = logging.getLogger(__name__)

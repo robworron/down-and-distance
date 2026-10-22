@@ -601,3 +601,36 @@ Step 1.2 (decision D7 of the Phase 1 plan): three restore points from before any
 - **Schema only:** `pg_restore` the dump into a new, empty database, never over production. `--restore-check FILE` is the rehearsal.
 - **Verify either restore** with `restore_point_counts.sql`: every row must equal the table above (or, after a later reload, the current production counts).
 - **Why:** a restore point is only worth having if returning to it has been shown to work, and later steps change production (the nightly job in 1.6). Requirements §7, Phase 1: "a rollback path is documented and no destructive production operation is needed".
+
+### 2026-10-21 — Pull-request checks
+
+Step 1.3 (decisions D2 and D3 of the Phase 1 plan).
+
+- **Changed:** `.github/workflows/ci.yml` runs on every pull request and every push to `main`, in two parallel jobs:
+  - **`python`:**
+    - `uv sync --locked`, then `ruff check`;
+    - `pytest`, skipping `test_raw_data.py` except its two seed-only checks;
+    - `pipeline dbt parse`.
+
+    A `postgres:18` service container on `localhost` (user, password and database `ci`) lets the 7 `local_only` upsert tests run.
+  - **`web`** (Node 24):
+    - `npm ci`;
+    - ESLint;
+    - `next typegen`, then `tsc --noEmit`;
+    - Vitest.
+  - **Settings:** `permissions: contents: read`, per-ref concurrency that cancels superseded runs, 15-minute timeouts, `persist-credentials: false`. The workflow references no secret.
+- **ruff (D2):** ruff 0.17.1 joins the dev group with its default rules, and `extend-exclude = ["notebooks"]`, because notebooks keep their committed outputs in step with their code. Its two findings in `.py` files were fixed with no behaviour change:
+  - the import block in `pipeline/load_pbp.py` (I001: one import over 88 characters, wrapped by ruff's own fix);
+  - `next(iter(bad))` for `list(bad)[0]` in `pipeline/tests/test_transforms.py` (RUF015).
+- **Actions pinned to release tags at least two weeks old** (the cutoff on 2026-10-21 was 2026-10-07):
+  - `actions/checkout` v7.0.1 (2026-07-20);
+  - `actions/setup-node` **v7.0.0** (2026-07-14);
+  - `astral-sh/setup-uv` **v10.2.0** (2026-09-21).
+
+  The plan had named setup-node v7.1.0 (published 2026-10-08) and setup-uv v10.3.1 (published 2026-10-21), which are both inside the two weeks, so the rule wins. `actions/cache` isn't needed: both setup actions cache their own downloads.
+- **What CI leaves out, and why:**
+  - **`next build`:** after step 1.5, builds need the database, and Vercel's build already checks every push.
+  - **The Neon data checks:** CI never holds production credentials.
+  - **`dbt parse` stops short of `dbt build`:** it catches Jinja, YAML and ref errors, not SQL errors. Those still surface in a local `dbt build`, which stays in the regression set.
+- **No required check yet (D3):** making the check required in the branch settings would block direct pushes to `main`; revisit at Gate D.
+- **Why:** every later change is checked the same way on a clean machine, before it's merged, without giving CI anything that could change production.

@@ -83,7 +83,7 @@ def test_compact_stores_whole_numbers_as_integers():
 
 @pytest.mark.parametrize("bad", [{"yards_gained": 2.5}, {"game_seconds_remaining": 40000.0}])
 def test_compact_refuses_values_that_would_change(bad):
-    with pytest.raises(ValueError, match=list(bad)[0]):
+    with pytest.raises(ValueError, match=next(iter(bad))):
         compact(pbp_frame(**bad))
 
 
