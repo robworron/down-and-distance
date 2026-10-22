@@ -35,21 +35,27 @@ function SituationCardSkeleton({ rows = 3 }: { rows?: number }) {
   );
 }
 
-/** The team page: header band, range bar, four headline figures, the situation cards. */
-export function TeamPageSkeleton() {
+/** The team page's header band. */
+function TeamHeaderSkeleton() {
   return (
-    <Loading label="Loading the team page">
-      <div className="border-t border-b-[5px] border-t-rule-strong bg-secondary">
-        <Container className="py-5 md:py-6">
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="mt-2 h-9 w-64 md:h-10" />
-          <div className="mt-3.5 flex flex-wrap gap-5">
-            {Array.from({ length: 4 }, (_, i) => (
-              <Skeleton key={i} className="h-9 w-28" />
-            ))}
-          </div>
-        </Container>
-      </div>
+    <div className="border-t border-b-[5px] border-t-rule-strong bg-secondary">
+      <Container className="py-5 md:py-6">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="mt-2 h-9 w-64 md:h-10" />
+        <div className="mt-3.5 flex flex-wrap gap-5">
+          {Array.from({ length: 4 }, (_, i) => (
+            <Skeleton key={i} className="h-9 w-28" />
+          ))}
+        </div>
+      </Container>
+    </div>
+  );
+}
+
+/** The range bar, four headline figures and the situation cards. */
+function TeamRangeParts() {
+  return (
+    <>
       <div className="border-b">
         <Container className="py-2.5">
           <Skeleton className="h-8 w-full max-w-[40rem]" />
@@ -71,6 +77,25 @@ export function TeamPageSkeleton() {
           <SituationCardSkeleton />
         </div>
       </Container>
+    </>
+  );
+}
+
+/** The whole team page, before the team is known. */
+export function TeamPageSkeleton() {
+  return (
+    <Loading label="Loading the team page">
+      <TeamHeaderSkeleton />
+      <TeamRangeParts />
+    </Loading>
+  );
+}
+
+/** The part of a team page that reads the season range. */
+export function TeamRangeSkeleton() {
+  return (
+    <Loading label="Loading these seasons' figures">
+      <TeamRangeParts />
     </Loading>
   );
 }

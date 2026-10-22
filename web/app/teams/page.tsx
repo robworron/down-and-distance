@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { Container } from "@/components/container";
@@ -31,8 +30,6 @@ export default function TeamsPage() {
 }
 
 async function TeamsByDivision() {
-  // Read at request time for now; step 1.5 caches it.
-  await connection();
   const teams = await getTeams();
 
   // getTeams returns league order, so grouping keeps it: AFC before NFC,

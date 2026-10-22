@@ -1,5 +1,10 @@
 import "server-only";
 
+// Every query here is cached ("use cache" + martsCache(), lib/cache.ts): the
+// marts change once a night, so a page reads the database only after the
+// nightly refresh expires the "marts" tag, or after a deploy. Arguments are
+// plain values, which form the cache key.
+
 import { and, asc, between, desc, eq, inArray, max, sql, type AnyColumn } from "drizzle-orm";
 
 import {
@@ -12,6 +17,7 @@ import {
   teamGamesInMarts as teamGames,
   teamSeasonsInMarts as teamSeasons,
 } from "@/drizzle/schema";
+import { martsCache } from "@/lib/cache";
 import { db } from "@/lib/db";
 import { excludes2020, type ExplorerState, type ExplorerSums } from "@/lib/explorer";
 import type { PlayoffRound, SeasonRecord } from "@/lib/records";
@@ -57,12 +63,16 @@ function toTeam(r: DimTeamRow): Team {
 
 /** All 32 teams in league order: by division (AFC East ... NFC West), then by name. */
 export async function getTeams(): Promise<Team[]> {
+  "use cache";
+  martsCache();
   const rows = await db.select().from(dimTeams).orderBy(asc(dimTeams.division), asc(dimTeams.teamName));
   return rows.map(toTeam);
 }
 
 /** The latest season with a finished game. */
 export async function getLatestSeason(): Promise<number | null> {
+  "use cache";
+  martsCache();
   const [row] = await db.select({ season: max(teamSplits.season) }).from(teamSplits);
   return row?.season ?? null;
 }
@@ -87,6 +97,8 @@ export type TeamProfile = Team & { stadium: Stadium | null };
  * for a code that isn't one of the 32 teams.
  */
 export async function getTeamProfile(abbr: string): Promise<TeamProfile | null> {
+  "use cache";
+  martsCache();
   const [row] = await db
     .select({ team: dimTeams, stadium: dimStadiums })
     .from(dimTeams)
@@ -127,6 +139,8 @@ function sumFor(column: AnyColumn, seasonType: "REG" | "POST") {
 
 /** A team's record in every season it has finished games, newest first. */
 export async function getSeasonRecords(abbr: string): Promise<SeasonRecord[]> {
+  "use cache";
+  martsCache();
   // 1. Results, re-aggregated from mart_team_splits. Every game has a venue
   //    (home, away or neutral), so a team's venue rows add up to all its
   //    finished games: summing them per season gives the season record.
@@ -213,6 +227,8 @@ export type Situation = {
 
 /** The v1 situations from the registry, in display order. */
 export async function getSituations(): Promise<Situation[]> {
+  "use cache";
+  martsCache();
   const rows = await db.select().from(situations).where(eq(situations.inV1, true)).orderBy(asc(situations.sortOrder));
   return rows.map((r) => {
     const values = present(r.valueList, "situations.value_list").split("|");
@@ -289,6 +305,8 @@ function splitSumColumns(t: typeof teamSplits | typeof leagueSplits) {
  * without a second query.
  */
 export async function getSplitSums(range: SeasonRange, seasonTypes: SeasonType[]): Promise<TeamSplitSums[]> {
+  "use cache";
+  martsCache();
   const rows = await db
     .select({ team: sql<string>`${teamSplits.team}`, ...splitSumColumns(teamSplits) })
     .from(teamSplits)
@@ -299,6 +317,8 @@ export async function getSplitSums(range: SeasonRange, seasonTypes: SeasonType[]
 
 /** The same sums for the whole league (team-games: each game counts once per team). */
 export async function getLeagueSplitSums(range: SeasonRange, seasonTypes: SeasonType[]): Promise<SplitSums[]> {
+  "use cache";
+  martsCache();
   return db
     .select(splitSumColumns(leagueSplits))
     .from(leagueSplits)
@@ -425,6 +445,8 @@ export function explorerStatement(state: ExplorerState) {
 
 /** Run the explorer statement: one row of sums and counts. */
 export async function getExplorerSums(state: ExplorerState): Promise<ExplorerSums> {
+  "use cache";
+  martsCache();
   const result = await db.execute<ExplorerSums>(explorerStatement(state));
   return result.rows[0];
 }
@@ -476,6 +498,8 @@ export type WeekRow = {
  * when no game is scheduled (the offseason before the schedule comes out).
  */
 export async function getThisWeek(): Promise<WeekRow[]> {
+  "use cache";
+  martsCache();
   const result = await db.execute<WeekRow>(sql`
     with this_week as (
       select season, min(week) as week
@@ -526,6 +550,8 @@ export type SeasonLeagueSums = {
  * Per season, because a total is compared with its own season's average game.
  */
 export async function getSeasonLeagueSums(keys: string[], from: number, to: number): Promise<SeasonLeagueSums[]> {
+  "use cache";
+  martsCache();
   const int = (column: AnyColumn) => sql<number>`sum(${column})::int`;
   return db
     .select({

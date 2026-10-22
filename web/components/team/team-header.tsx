@@ -1,5 +1,4 @@
 import { Container } from "@/components/container";
-import { WinSparkline } from "@/components/team/win-sparkline";
 import type { Stadium, TeamProfile } from "@/lib/queries";
 import { textOn } from "@/lib/team-colors";
 
@@ -31,15 +30,7 @@ function zoneName(timezone: string) {
  * the abbreviation as a faint monogram behind the name, home-field facts and a
  * win % sparkline. Colours and abbreviations only, never logos.
  */
-export function TeamHeader({
-  team,
-  spark,
-  range,
-}: {
-  team: TeamProfile;
-  spark: { season: number; winPct: number }[];
-  range: [number, number];
-}) {
+export function TeamHeader({ team, sparkline }: { team: TeamProfile; sparkline: React.ReactNode }) {
   const ink = textOn(team.color);
   const s = team.stadium;
   const facts = s
@@ -81,7 +72,7 @@ export function TeamHeader({
             </dl>
           )}
         </div>
-        <WinSparkline points={spark} range={range} />
+        {sparkline}
       </Container>
     </section>
   );

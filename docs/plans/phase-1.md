@@ -301,6 +301,13 @@ Phase 0 (pipeline, dbt warehouse, analysis, team research site) is built and liv
 
 ## Step 1.5 — Caching and the refresh route (to `docs/plans/states-and-caching.md` § 1.5; D5 approved)
 
+> **As built (2026-10-22).** Built as written, with three points the 1.4 changes settled:
+> - **No pre-stream lookup to cache.** After 1.4 the team page streams everything, and Proxy checks the code, so there was no wait to remove. `generateStaticParams` lists the 32 codes from the cached `getTeams()`; the header and the season table are in each prerendered shell. The range bar, headline figures, splits and the sparkline's shading stream: the shading arrives through a `<Suspense>` slot in the header, with an unshaded sparkline in the shell.
+> - **No `instant = false`.** The build accepted the structure without it.
+> - **The root not-found page still reads no data** (1.4's rule); showing team names there is in the parking lot.
+>
+> Results, measurements and the guarantees table: `docs/decisions.md` ("Caching and the refresh route").
+
 1. **Objective:**
    - every query cached under one tag and one lifetime;
    - static shells;

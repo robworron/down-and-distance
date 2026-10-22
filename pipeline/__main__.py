@@ -5,6 +5,7 @@
     uv run python -m pipeline ingest --seasons 2020-2022
     uv run python -m pipeline ingest --only schedules,weather
     uv run python -m pipeline dbt build                 # any dbt command, against DATABASE_URL
+    uv run python -m pipeline refresh --site URL        # tell the site the marts changed
 
 Tables load in dependency order: schedules first (weather reads it), then
 teams, weather and play-by-play. Every load is an idempotent upsert, so a
@@ -51,11 +52,17 @@ def main() -> None:
         from pipeline.run_dbt import run
 
         sys.exit(run(sys.argv[2:]))
+    # `refresh` has its own options (pipeline/refresh.py).
+    if sys.argv[1:2] == ["refresh"]:
+        from pipeline.refresh import main as refresh
+
+        sys.exit(refresh(sys.argv[2:]))
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     parser = argparse.ArgumentParser(prog="python -m pipeline", description="Down & Distance data pipeline.")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("dbt", help="run a dbt command against DATABASE_URL, e.g. dbt build")
+    commands.add_parser("refresh", help="refresh the site's cache after a dbt build, then check its pages")
 
     ingest_cmd = commands.add_parser("ingest", help="load the raw tables")
     which = ingest_cmd.add_mutually_exclusive_group()
