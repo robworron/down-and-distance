@@ -55,6 +55,11 @@ log = logging.getLogger("pipeline.publish")
 PUBLISHED, CANDIDATE_FAILED, PUBLISH_FAILED, MISMATCH, GATE_FAILED, NOT_LOCKED = 0, 1, 2, 3, 4, 5
 CANDIDATE_SUFFIX = "_candidate"
 LOCK_TIMEOUT = "5min"
+# Neon ends a session left idle inside a transaction for 5 minutes, and the
+# lock's session is idle while dbt builds. Raised for this one transaction,
+# below the nightly job's 45-minute limit (a dead job's connection closes,
+# and its lock goes with it).
+IDLE_IN_TRANSACTION_LIMIT = "40min"
 RELATIVE_TOLERANCE = 1e-9  # --compare: floating-point sums may differ in the last bits
 
 
@@ -68,6 +73,7 @@ class PublishDb:
     def lock_raw(self, timeout: str = LOCK_TIMEOUT) -> list[str]:
         """SHARE-lock every table in raw, read from the catalogue so new raw tables are covered."""
         self.conn.execute(sql.SQL("SET LOCAL lock_timeout = {}").format(sql.Literal(timeout)))
+        self.conn.execute(sql.SQL("SET LOCAL idle_in_transaction_session_timeout = {}").format(sql.Literal(IDLE_IN_TRANSACTION_LIMIT)))
         tables = [r[0] for r in self.conn.execute("SELECT tablename FROM pg_tables WHERE schemaname = %s ORDER BY tablename", [self.raw])]
         names = sql.SQL(", ").join(sql.Identifier(self.raw, t) for t in tables)
         self.conn.execute(sql.SQL("LOCK TABLE {} IN SHARE MODE").format(names))
@@ -120,11 +126,22 @@ class PublishDb:
                 differ.append(table)
         return differ
 
+    def alive(self) -> bool:
+        """True if the lock's session is still there (if it isn't, neither is the lock)."""
+        try:
+            self.conn.execute("SELECT 1")
+            return True
+        except psycopg.Error:
+            return False
+
     def commit(self) -> None:
         self.conn.commit()
 
     def rollback(self) -> None:
-        self.conn.rollback()
+        try:
+            self.conn.rollback()
+        except psycopg.Error:
+            pass  # the session is already gone, and its transaction with it
 
 
 def _missing(v) -> bool:
@@ -190,7 +207,12 @@ def publish(
     log.info("raw locked (%d tables, %s rows); marts has %d tables", len(tables), f"{sum(c for c, _ in f0.values()):,}", len(oids))
 
     def untouched(code: int, why: str) -> int:
-        after = db.table_oids()
+        try:
+            after = db.table_oids()
+        except psycopg.Error:
+            # The lock's session is gone; the real build never ran, so nothing replaced the marts.
+            log.error("%s: the real build never ran (marts untouched; couldn't recheck their identities)", why)
+            return code
         if after == oids:
             log.error("%s: marts untouched (%d tables, same identities)", why, len(oids))
         else:
@@ -207,26 +229,34 @@ def publish(
     if not dbt(candidate_vars, full_refresh):
         return untouched(CANDIDATE_FAILED, "candidate build failed")
 
+    # The real build only runs while the lock is still held.
+    if not db.alive():
+        log.error("the lock's session was lost during the checks: raw wasn't frozen, so nothing is published (marts untouched)")
+        return NOT_LOCKED
+
     if not dbt(None, full_refresh):
         db.rollback()
         log.error("publish build failed: some marts may be new and others old; each passed the candidate's tests")
         return PUBLISH_FAILED
 
     problems = []
-    f1 = db.fingerprint()
-    if f1 != f0:
-        problems.append(f"raw changed under the lock: {sorted(t for t in set(f0) | set(f1) if f0.get(t) != f1.get(t))}")
-    published, candidate = db.row_counts("marts"), db.row_counts(f"marts{CANDIDATE_SUFFIX}")
-    if published != candidate:
-        problems.append(f"row counts differ: {sorted(t for t in set(published) | set(candidate) if published.get(t) != candidate.get(t))}")
-    if compare:
-        differ = db.differing_tables("marts", f"marts{CANDIDATE_SUFFIX}")
-        log.info("compare: %d of %d marts identical to the candidate", len(published) - len(differ), len(published))
-        if differ:
-            problems.append(f"values differ: {differ}")
-    db.commit()
-
-    replaced = sum(1 for t, oid in db.table_oids().items() if oids.get(t) != oid)
+    replaced = 0
+    try:
+        f1 = db.fingerprint()
+        if f1 != f0:
+            problems.append(f"raw changed under the lock: {sorted(t for t in set(f0) | set(f1) if f0.get(t) != f1.get(t))}")
+        published, candidate = db.row_counts("marts"), db.row_counts(f"marts{CANDIDATE_SUFFIX}")
+        if published != candidate:
+            problems.append(f"row counts differ: {sorted(t for t in set(published) | set(candidate) if published.get(t) != candidate.get(t))}")
+        if compare:
+            differ = db.differing_tables("marts", f"marts{CANDIDATE_SUFFIX}")
+            log.info("compare: %d of %d marts identical to the candidate", len(published) - len(differ), len(published))
+            if differ:
+                problems.append(f"values differ: {differ}")
+        db.commit()
+        replaced = sum(1 for t, oid in db.table_oids().items() if oids.get(t) != oid)
+    except psycopg.Error:
+        problems.append("the lock's session was lost during the real build: raw may have changed under it")
     if problems:
         for p in problems:
             log.error("equivalence check failed: %s", p)

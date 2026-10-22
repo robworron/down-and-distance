@@ -23,10 +23,15 @@ from pipeline.db import database_url, is_local_database, upsert_dataframe
 
 
 class FakeDb:
-    def __init__(self, raw_changes=False, counts_differ=False, values_differ=False, lock_fails=False):
+    def __init__(self, raw_changes=False, counts_differ=False, values_differ=False, lock_fails=False, lost=None):
         self.calls, self.oids = [], {"games": 1, "team_games": 2}
         self.raw_changes, self.counts_differ, self.values_differ, self.lock_fails = raw_changes, counts_differ, values_differ, lock_fails
+        self.lost = lost  # "before" or "after" the real build: the lock's session drops
         self.fingerprints = 0
+
+    def alive(self):
+        self.calls.append("alive")
+        return self.lost != "before"
 
     def lock_raw(self):
         self.calls.append("lock")
@@ -36,6 +41,8 @@ class FakeDb:
 
     def fingerprint(self):
         self.fingerprints += 1
+        if self.lost == "after" and self.fingerprints > 1:
+            raise psycopg.OperationalError("server closed the connection unexpectedly")
         return {"schedules": (10 + (self.raw_changes and self.fingerprints > 1), None)}
 
     def table_oids(self, schema="marts"):
@@ -77,7 +84,7 @@ def test_runs_lock_gate_candidate_publish_then_commits():
     db = FakeDb()
     code, builds = run(db)
     assert code == p.PUBLISHED
-    assert db.calls == ["lock", "gate", "candidate", "publish", "commit"]
+    assert db.calls == ["lock", "gate", "candidate", "alive", "publish", "commit"]
     assert builds == [({"schema_suffix": "_candidate"}, False), (None, False)]
 
 
@@ -126,6 +133,20 @@ def test_no_lock_is_exit_5_with_nothing_built():
     db = FakeDb(lock_fails=True)
     code, builds = run(db)
     assert code == p.NOT_LOCKED and builds == [] and db.calls == ["lock", "rollback"]
+
+
+def test_a_lock_lost_before_the_real_build_publishes_nothing():
+    db = FakeDb(lost="before")
+    code, builds = run(db)
+    assert code == p.NOT_LOCKED
+    assert [v for v, _ in builds] == [{"schema_suffix": "_candidate"}]  # the real build never ran
+    assert db.oids == {"games": 1, "team_games": 2}
+
+
+def test_a_lock_lost_during_the_real_build_is_exit_3():
+    db = FakeDb(lost="after")
+    code, _ = run(db)
+    assert code == p.MISMATCH and "publish" in db.calls
 
 
 def test_full_refresh_reaches_both_builds():
@@ -204,3 +225,40 @@ def test_the_lock_waits_for_a_write_in_progress(raw_schema):
         assert db.fingerprint()["games"][0] == 3
         db.rollback()
     writer.close()
+
+
+@pytest.mark.local_only
+@local
+def test_the_lock_transaction_outlives_neons_idle_limit(raw_schema):
+    with psycopg.connect(database_url()) as holder:
+        db = p.PublishDb(holder, raw_schema=raw_schema)
+        db.lock_raw()
+        assert holder.execute("SHOW idle_in_transaction_session_timeout").fetchone()[0] == p.IDLE_IN_TRANSACTION_LIMIT
+        db.rollback()
+
+
+@pytest.mark.local_only
+@local
+def test_a_killed_lock_session_stops_publish_before_the_real_build(raw_schema):
+    """The lock's session dies during the candidate (as Neon's idle timeout would do)."""
+    holder = psycopg.connect(database_url())
+    db = p.PublishDb(holder, raw_schema=raw_schema)
+    pid = None
+    builds = []
+
+    def gate():
+        nonlocal pid
+        pid = holder.execute("SELECT pg_backend_pid()").fetchone()[0]
+        return True
+
+    def dbt(variables, full_refresh):
+        builds.append(variables)
+        if variables:  # the candidate: meanwhile, the server ends the lock's session
+            with psycopg.connect(database_url(), autocommit=True) as admin:
+                admin.execute("SELECT pg_terminate_backend(%s)", [pid])
+            time.sleep(0.5)
+        return True
+
+    assert p.publish(db, gate=gate, dbt=dbt) == p.NOT_LOCKED
+    assert builds == [{"schema_suffix": "_candidate"}]  # the real build never ran
+    holder.close()

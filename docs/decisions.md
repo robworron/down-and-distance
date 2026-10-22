@@ -881,9 +881,9 @@ Step 1.6, decisions D4 and D6 of the Phase 1 plan, with the plan's candidate bui
     - **Addition to the plan:** scheduled runs need the repository variable `NIGHTLY_SCHEDULE` = `on`. The workflow file lands on `main` before the test-target rehearsals, and Rob asked that scheduled production runs wait for them. The variable is also the off switch; manual runs always work.
   - **SQL checks:** `latest_run_loads.sql`, `marts_table_oids.sql`, `candidate_schemas_unreadable.sql`.
 - **Tests:**
-  - **pytest:** 102, up from 69:
+  - **pytest:** 106, up from 69:
     - `test_runs` (13): the sanitizer; ingest's exit codes with fake loaders; the weather rate limit; and, `local_only`, the tables, their constraints and abandoned runs;
-    - `test_publish` (14): the order and every exit code with a fake database; float-tolerant comparison; and, `local_only`, the fingerprint (an upsert moves it, a read doesn't), the SHARE lock making an insert wait, and the lock waiting for an uncommitted insert;
+    - `test_publish` (18): the order and every exit code with a fake database, including a lock lost before or during the real build; float-tolerant comparison; and, `local_only`, the fingerprint (an upsert moves it, a read doesn't), the SHARE lock making an insert wait, the lock waiting for an uncommitted insert, the idle limit inside the lock transaction, and a killed lock session stopping publish (exit 5);
     - `test_refresh` (+6): the stamp check.
   - **Vitest:** 136, with 6 for `formatEastern`.
 - **Local rehearsal** (Docker, the real commands; mart identities from `pg_class`):
@@ -904,5 +904,35 @@ Step 1.6, decisions D4 and D6 of the Phase 1 plan, with the plan's candidate bui
     - pandas' `NaT` and NA compare unequal to themselves, so `--compare` now treats every pandas missing value as NULL;
     - array columns can't be sorted by pandas, so rows are ordered by their text.
   - **EPA:** `--compare` sees `team_games.epa` differ between the two builds in the last bits (e.g. −18.86208409073272 against −18.862084090732715), as the plan predicted, and accepts it within the tolerance.
+- **The lock on Neon's direct production host** (announced; read-only apart from locks, every write lock in a rolled-back transaction, so no data could change), with publish's own `lock_raw()` and `fingerprint()`: **14 of 14 passed**.
+  - **The connection:** `NEON_DATABASE_URL` is the direct host.
+  - **The lock:** taken on all 4 raw tables in 2.2 s and held for 15 s. Readers weren't blocked (500,634 plays read in 0.53 s), and a write lock on each table waited 2 s, then was refused.
+  - **Consistency:** 3 new connections saw F0, and F1 = F0.
+  - **Release:** rolling back, or terminating the holder's session, released the lock at once.
+  - **The finding: Neon sets `idle_in_transaction_session_timeout = 5min`.** The lock's session is idle inside its transaction while dbt builds, so a publish slower than 5 minutes would have lost its lock (about 2 minutes on Neon so far). Worse, the code would have:
+    - started the real build without noticing;
+    - then crashed with Python's exit code 1, which the workflow reads as "candidate failed, marts untouched".
+
+    Fixed in `pipeline/publish.py` before any production publish:
+    - the lock transaction sets `SET LOCAL idle_in_transaction_session_timeout = '40min'` (below the job's 45-minute limit);
+    - `publish()` checks the session is alive before the real build and stops with exit 5 (marts untouched) if not;
+    - losing it during the real build gives exit 3 (published, investigate) instead of a crash.
+
+    New tests: the limit is set inside the lock transaction; a lock session killed during the candidate stops publish before the real build (exit 5); a lost session after the real build gives exit 3.
+- **What the raw fingerprint can and can't show.** F0 and F1 are, per raw table, the row count and the newest `_loaded_at` (for the two run-record tables, the newest of `started_at` / `finished_at`). Under a held lock they can't differ, so the fingerprint is the check for a lock that was lost (a dropped connection, a server timeout, a pooler).
+  - **It sees:**
+    - every insert or delete (the count, and a new row's `_loaded_at`);
+    - every upsert update (`upsert_dataframe` sets `_loaded_at = now()`);
+    - a run record written or finished;
+    - a raw table added or dropped.
+  - **It doesn't see:**
+    - an UPDATE by hand that leaves `_loaded_at` alone, or sets it to an older time;
+    - a delete and insert that keep the count and write an older `_loaded_at` by hand.
+
+    The pipeline never does either; the lock would still block them while it holds.
+  - **It only reports.** A mismatch is found after the real build, so the run exits 3 ("published, investigate"); each build still passed its own tests.
+  - **It covers raw only.** The seeds and the dbt code come from the one checkout both builds run from, so they can't differ between them.
+  - **Before the lock it says nothing.** Raw changes between the end of `ingest` and the lock are allowed, and the gate and candidate test whatever raw is there.
+  - **The row counts aren't the values.** The nightly compares the marts' row counts with the candidate's; only `--compare` (rehearsals) compares every value, floats within a relative 1e-9.
 - **Production steps** (Neon expand, test-target rehearsals, the first production run and the first scheduled run) are recorded below once they've run.
 - **Why:** the plan's publishing safeguard, now with its lock tested. Every published mart was built from the same frozen raw rows as a candidate that passed every test; a failure anywhere before the real build leaves the marts exactly as they were; and the stamp, the refresh and the run records make each night's outcome visible.
