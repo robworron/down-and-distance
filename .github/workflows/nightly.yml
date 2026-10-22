@@ -35,6 +35,10 @@ on:
         type: choice
         options: [none, weather, schedules, dbt_test]
         default: none
+      compare:
+        description: Also compare every mart value with the candidate (rehearsals; reads both copies)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -95,6 +99,11 @@ jobs:
           key: open-meteo-${{ github.run_id }}
           restore-keys: open-meteo-
 
+      # Read-only: each mart's identity, before and after (a new OID means
+      # dbt replaced the table; the same OID means it was left untouched).
+      - name: Mart identities before
+        run: uv run python -m pipeline.report oids
+
       # Exit 0 all loaded; 1 an optional table failed; 2 schedules failed (or
       # the run records couldn't be written), so there's nothing to publish.
       - name: Ingest
@@ -114,6 +123,7 @@ jobs:
         run: |
           flag=""
           if [ "$SIMULATE" = "dbt_test" ]; then flag="--simulate-test-failure"; fi
+          if [ "${{ inputs.compare }}" = "true" ]; then flag="$flag --compare"; fi
           set +e
           uv run python -m pipeline publish --target "$TARGET" $flag
           echo "code=$?" >> "$GITHUB_OUTPUT"
@@ -157,6 +167,12 @@ jobs:
           uv run pytest pipeline/tests/test_raw_data.py -m advisory -q -p no:cacheprovider
           if [ $? -ne 0 ]; then echo "::warning::an advisory raw check failed: nflverse changed something; revisit the check or its correction"; fi
           exit 0
+
+      - name: Mart identities after, and the run records
+        if: always() && steps.ingest.outputs.code != ''
+        run: |
+          uv run python -m pipeline.report oids
+          uv run python -m pipeline.report runs
 
       - name: Save the weather cache
         if: always()
