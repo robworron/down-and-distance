@@ -36,6 +36,7 @@ Ideas for later. Not part of the current step.
     - drop the stamp from the not-found page (the simplest);
     - have `/api/revalidate` also expire the cached 404 response (needs a check that Vercel honours it).
   - **Impact:** only the footer stamp on an error page.
+  - **Seen after a deploy (2026-10-23):** after the docs-only deploy of `51fe474`, `/teams/xyz` showed the current stamp, so a deploy replaces it. Whether anything else does is still unknown.
 - **Schedule delay (2026-10-23).** GitHub started the first scheduled nightly about 4 h 51 min after 09:30 UTC. If late runs persist, move the cron earlier, or add a second cron an hour or two later that only runs when the day's run hasn't happened yet.
 
 ## Tooling and operations

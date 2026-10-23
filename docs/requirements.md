@@ -3,7 +3,7 @@
 
 **Version:** 1.0
 **Date:** 2026-10-21
-**Status:** Phase 0 of `docs/build-plan.md` (the NFL data pipeline, dbt warehouse, team analysis and team research pages) is built. The fantasy features in Phases 1–7 are planned, not built. This document is the product specification; `docs/build-plan.md` is the implementation roadmap, and `docs/decisions.md` records the technical decisions.
+**Status:** Phase 0 of `docs/build-plan.md` (the NFL data pipeline, dbt warehouse, team analysis and team research pages) is built, and so is Phase 1 (baseline and reliability), verified on 2026-10-23. The fantasy features in Phases 2–7 are planned, not built. This document is the product specification; `docs/build-plan.md` is the implementation roadmap, and `docs/decisions.md` records the technical decisions.
 **Intended implementer:** Claude Code, directed and reviewed by the project owner.
 **Priority:** Equal weight to weekly personal usefulness and demonstrable engineering/analytics skill.
 

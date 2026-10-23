@@ -6,7 +6,7 @@ The development plan for Down & Distance, a fantasy football research applicatio
 - **Decision record:** `docs/decisions.md`, the technical decisions and their reasons. It wins where it disagrees with this plan.
 - **Data model:** `docs/data-model.md`, updated as each table is built.
 
-Phase 0 is built. Phases 1–7 run in order, one step at a time.
+Phases 0 and 1 are built (Phase 1 verified 2026-10-23, `docs/plans/phase-1-verification.md`). Phases 2–7 run in order, one step at a time.
 
 ## About the project
 
@@ -320,7 +320,7 @@ Each is decided at its step, with counts and a recommendation, as `CLAUDE.md` re
 | Phase | Goal | Ends at | Estimate | Status |
 | --- | --- | --- | --- | --- |
 | 0 | Foundation: NFL data pipeline, dbt warehouse, team analysis, research site | — | (done) | Built, verified 2026-10-21 |
-| 1 | Baseline and reliability: CI, error states, caching, nightly refresh | — | 14–24 h | Not started |
+| 1 | Baseline and reliability: CI, error states, caching, nightly refresh | — | 14–24 h | Built, verified 2026-10-23 |
 | 2 | Player data in `raw` | Gate A (internal) | 8–16 h | Not started |
 | 3 | Fantasy transformations in dbt | — | 14–24 h | Not started |
 | 4 | Fantasy analysis | Gate B (internal) | 7–13 h | Not started |
@@ -485,7 +485,7 @@ Role:
 
 **Not built yet:** error and loading states, and caching. These are steps 1.4 and 1.5.
 
-## Phase 1 — Baseline and reliability
+## Phase 1 — Baseline and reliability (built)
 
 **Goal:** before any player code, measure what works, set a restore point, and close the site's reliability gaps:
 - no CI;

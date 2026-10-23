@@ -1,6 +1,6 @@
 # Down & Distance
 
-A public fantasy football research application, with team-level NFL research alongside it. Python batch jobs load data into PostgreSQL, dbt transforms it with SQL, and a Next.js site on Vercel reads the results. Phase 0 of the build plan (the data pipeline, dbt warehouse, team analysis and team research pages) is built; the fantasy features (Phases 1–7) are planned.
+A public fantasy football research application, with team-level NFL research alongside it. Python batch jobs load data into PostgreSQL, dbt transforms it with SQL, and a Next.js site on Vercel reads the results. Phase 0 of the build plan (the data pipeline, dbt warehouse, team analysis and team research pages) and Phase 1 (baseline and reliability: CI, error states, caching, the nightly job) are built and verified; the fantasy features (Phases 2–7) are planned. `docs/plans/phase-2-handoff.md` orients a new session for Phase 2.
 
 The full plan and step checklist is `docs/build-plan.md`. Read the current step there before starting any work. Do not import that file; open it when needed. The product requirements are `docs/requirements.md`. Step numbers in older code comments may not match the build plan; the build plan's numbering is current.
 
@@ -89,7 +89,7 @@ Run from the repo root unless noted. Anything local needs Docker Desktop running
   - Each streamed section sits in `<SectionError>` (outside its `<Suspense>`) with a skeleton from `components/skeletons.tsx`; hints use `Hint` (a tooltip with a mouse, a popover on touch); a margin or game total uses `sampleMeanEstimate` (no interval below 3 games).
 - **Screenshots:** the browser pane scales wide viewports down, and while hidden it pauses the animation frames React uses to reveal streamed (Suspense) content. For full-size checks run headless Chrome (`--headless=new --screenshot`, `--force-dark-mode` for dark), and frame phone widths in a 375–390 px iframe. Keep screenshot files out of the repo.
 - **Production changes the site depends on** (grants, new marts or columns) go expand → deploy → contract: add the new on Neon, deploy the code that uses it, then remove the old, so the live site never errors. Stop for Rob before each Neon step.
-- **Notebooks:** `notebooks/02`–`06` are the team situation analysis (01 is the play-by-play column choice); notebooks 07–10 (steps 2.1 and 4.2–4.4) cover the player sources and analysis. They read the local marts, so run `dbt build` first.
+- **Notebooks:** `notebooks/02`–`06` are the team situation analysis (01 is the play-by-play column choice); notebooks 07–10 (steps 2.1 and 4.2–4.4, not yet written) will cover the player sources and analysis. They read the local marts, so run `dbt build` first.
   - **Re-run one headless:** `uv run jupyter nbconvert --to notebook --execute --inplace notebooks/<name>.ipynb`. Its final `assert` cells are the step's Done-when check, and the answer paragraphs are generated from the computed numbers under asserts, so a failed run means a claim no longer holds. 04 and 06 take about a minute each. Commit notebooks with their outputs.
   - **Reproducible:** bootstraps and shuffles use fixed seeds (`SEED`, `N_RESAMPLES` in `pipeline/analysis.py`), so a re-run gives the same numbers.
   - **`pipeline/analysis.py`** is the notebooks' shared helper module, unit-tested in `pipeline/tests/test_analysis.py`:
