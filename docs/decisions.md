@@ -962,7 +962,51 @@ Step 1.6, decisions D4 and D6 of the Phase 1 plan, with the plan's candidate bui
     - Vercel served them from its edge cache (`X-Vercel-Cache: HIT`, `Age` 20–27 s and climbing), so they had been re-cached with the old footer.
     - Locally, the same refresh did update the 404 page (R8), so this is how Vercel caches the 404 response.
   - **What is affected:** only the 404 page's footer stamp. Its content and its 404 status are correct, and `refresh --expect-stamp` checks the 6 main pages, not the 404 page.
-  - **How long it lasts is not established.** The not-found route's 1-day `revalidate` might bound it, but that hasn't been observed, so no bound is claimed. It's rechecked after each scheduled run until the behaviour is measured.
-  - **Why it's outstanding rather than fixed:** the evidence so far shows nothing more serious than a stale stamp on an error page.
-- **Production steps** (Neon expand, test-target rehearsals, the first production run and the first scheduled run) are recorded below once they've run.
+  - **How long it lasts: no bound observed.**
+    - At 18:12 the 404 page showed the new stamp (`MISS`), and at 18:43 it was still current (`HIT`).
+    - At 22:00 on 2026-10-23, after the scheduled run's refresh at 14:23, it **still showed the 2026-10-22 stamp** (`18:00:36Z`), with `X-Vercel-Cache: HIT` and `Age: 100056`: about **27.8 hours** old. That's past the not-found route's 1-day `revalidate`, and the refresh didn't replace it.
+    - So neither the refresh nor the 1-day lifetime reaches Vercel's cached 404 response, and no upper bound is claimed. The 18:12 catch-up was a cache miss, not the refresh.
+    - **Gap:** a background watcher logged the 404 stamp every 30 minutes until it died at about 18:43 on 2026-10-22 (Git Bash couldn't start a process on Windows, `0xC000026B`). Its two entries (18:12, 18:43) survive; there are no observations between 18:43 and 22:00 the next day, and none are inferred.
+  - **Why it's still outstanding, not fixed:**
+    - only the footer stamp on the error page is stale;
+    - the page's content, its 404 status and every main page's stamp are correct;
+    - `refresh --expect-stamp` keeps proving the main pages.
+    - A fix (left to Rob, in the parking lot): drop the stamp from the not-found page, or have the refresh also expire Vercel's cached 404 response.
+- **Production expand** (Rob approved each command; 2026-10-22):
+  1. **A schema backup first** (read-only): `neon-schema-2026-10-22-1251.dump`, restored locally with no errors.
+  2. **`ingest`** created `raw.pipeline_runs` and `raw.source_loads`. Exit 0 in 8 s; schedules 6 rows updated; 0 deleted anywhere. The mart identities and row counts were unchanged.
+  3. **`publish`:** exit 0 in 96 s; gate 15 / 15; candidate and real build 338 / 338; F0 = F1. It created `staging_candidate`, `marts_candidate` and `marts.data_freshness`; raw was unchanged by the publish.
+  4. **Checks after:** `create_web_reader --check` gives marts 10 of 10, staging 0 of 7, raw 0 of 6, writes refused. `candidate_schemas_unreadable.sql` shows no usage and 0 readable tables in either candidate schema.
+  5. **Storage:** 215 MB → 233 MB (the candidate copy is 18 MB).
+- **Pushed and deployed:** `0711976`, `66f215f`. Vercel built against the new mart; the live footer read "Data updated Thu Oct 22, 12:55 pm ET" (`16:55:51Z`) on every page, matching Neon; 18 / 18 status checks.
+- **Test-target rehearsals** (`nightly-test` only; production's run records and mart identities were unchanged throughout):
+
+  | Scenario | Run | Result |
+  | --- | --- | --- |
+  | none | [39824455597](https://github.com/robworron/down-and-distance/actions/runs/39824455597) | Green: every load `success`; 338 / 338 twice; F0 = F1; 9 marts replaced |
+  | weather | [39825325174](https://github.com/robworron/down-and-distance/actions/runs/39825325174) | Red: `game_weather` `failed`, the other three `success`; run `partial`; published |
+  | schedules | [39825681496](https://github.com/robworron/down-and-distance/actions/runs/39825681496) | Red: ingest exit 2; publish skipped; 0 of 10 mart OIDs changed |
+  | dbt_test | [39825774477](https://github.com/robworron/down-and-distance/actions/runs/39825774477) | Red: candidate PASS=337, ERROR=1; "marts untouched (10 tables, same identities)"; 0 of 10 OIDs changed |
+  | none, rerun with compare | [39825943792](https://github.com/robworron/down-and-distance/actions/runs/39825943792) | Green: +0 ~0 -0 in every table; "10 of 10 marts identical to the candidate" |
+
+  The three earlier red "none" runs found defects 1–3 above; run 39827151371 (production) found defect 4.
+- **The manual production run** ([39827562612](https://github.com/robworron/down-and-distance/actions/runs/39827562612), 2026-10-22, 2 min 17 s): green.
+  - ingest exit 0; gate 15 / 15; 338 / 338 twice; F0 = F1;
+  - refresh 200, and `--expect-stamp` passed: every page showed `18:00:36Z`;
+  - the live stamp moved from 12:55 to 2:00 pm ET without a deploy.
+- **The first scheduled run** ([39968873806](https://github.com/robworron/down-and-distance/actions/runs/39968873806)), `schedule` event, commit `289d06c`: **green**.
+  - **Timing:** the job ran 14:21:10–14:23:38 UTC on 2026-10-23 (2 min 28 s). That's **about 4 h 51 min after the 09:30 cron time**: GitHub delays scheduled runs under load (see the risks).
+  - **Target check:** "DATABASE_URL points at a remote host (not shown)", on its first use on a runner.
+  - **Ingest:** exit 0 in 7 s; schedules 22 rows updated; pbp **+171 plays**, 14 updated (Thursday's game); 0 deleted.
+  - **Publish:** gate 15 / 15; candidate and real build PASS=338; F0 = F1; 9 marts replaced; 95 s.
+  - **Refresh:** 200; 6 page checks ok; "stamp: every page shows 2026-10-23T14:21:37Z".
+  - **Advisory checks:** 2 / 2 passed.
+  - **Production run records:** `schedule` / `production` / `success` (git `289d06c`), with all four loads `success`. Three runs in total, none left `running`.
+  - **The live stamp** at 22:00 UTC: `2026-10-23T14:21:37Z` ("Data updated Fri Oct 23, 10:21 am ET") on all 7 main pages, the request-time `?from=2016` page included, matching `marts.data_freshness`.
+  - **No redeploy:** the only deployment since 2026-10-22 18:07 UTC is GitHub's own `production` environment record at 14:21:06; Vercel's latest build of `main` is still 2026-10-22 18:07:40.
+  - **After the run:** 18 / 18 live status checks; `web_reader` still reads marts only (10 of 10), with the candidate schemas unreadable; CI green on `main`.
+  - **Storage:** 234 MB (raw 188 MB, marts 18 MB, marts_candidate 18 MB, staging and staging_candidate 120 kB each).
+  - **Credential scan** of all 11 nightly logs: 0 lines matching a connection string, Neon host, password or bearer token.
+- **Not yet measured:** Neon compute (CU-hours). Rob reads it in the console after a week of nightly runs (plan estimate: 2–12 of 100 a month).
+- **Risk observed: schedule delay.** GitHub ran the first scheduled job almost 5 hours late, so on a heavy day the site's data can arrive by mid-afternoon ET instead of before the morning. The plan already lists GitHub's scheduling delays; if late runs persist, an earlier cron or a second trigger is in the parking lot.
 - **Why:** the plan's publishing safeguard, now with its lock tested. Every published mart was built from the same frozen raw rows as a candidate that passed every test; a failure anywhere before the real build leaves the marts exactly as they were; and the stamp, the refresh and the run records make each night's outcome visible.

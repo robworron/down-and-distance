@@ -546,7 +546,7 @@ The site is then safe to change and stays fresh while the player features are bu
     - repeat visits are measurably faster, locally and live;
     - the route returns 401, 405 and 503 for the wrong secret, GET and a missing secret;
     - a POST refreshes a changed value.
-- [ ] **1.6 Nightly refresh and run records.**
+- [x] **1.6 Nightly refresh and run records.**
   - **Run records.** `pipeline/runs.py` writes:
     - `raw.pipeline_runs`: run ID, trigger, start and finish, status, git SHA;
     - `raw.source_loads`: run ID, table, seasons, status, rows inserted, updated and deleted, a sanitized error, nflreadpy version.
@@ -556,8 +556,8 @@ The site is then safe to change and stays fresh while the player features are bu
     - runs on `workflow_dispatch` and a daily cron at 09:30 UTC, after nflverse's overnight builds;
     - uses a concurrency group, so two runs never overlap;
     - restores the Open-Meteo cache from the Actions cache;
-    - runs ingest against Neon, then `dbt build`, then POSTs to the refresh route, then requests the main pages.
-  - **Secrets.** Rob adds `NEON_DATABASE_URL`, `REVALIDATE_SECRET` and `SITE_URL` as repository secrets, with click-by-click steps.
+    - runs ingest against Neon, then `pipeline publish` (raw gate, candidate build, then `dbt build`, under a lock on raw), then POSTs to the refresh route, then checks the main pages show the new stamp.
+  - **Secrets.** As built (`decisions.md`, 2026-10-22): GitHub Environments rather than repository secrets. `production` holds `DATABASE_URL` (the Neon owner URL) and `REVALIDATE_SECRET`, `main` only; `test` holds the `nightly-test` branch's URL. `SITE_URL` and `NIGHTLY_SCHEDULE` are repository variables.
   - Learn: YAML, runners, secrets, cron in UTC, why a rerun is safe.
   - Done when:
     - a manual run is green, and a scheduled run fires on its own;

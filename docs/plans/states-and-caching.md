@@ -1,6 +1,6 @@
 # Plan: states and polish (1.4), caching and the refresh route (1.5)
 
-**Status:** design agreed with Rob on 2026-10-19; not started.
+**Status:** design agreed with Rob on 2026-10-19; **built in steps 1.4 and 1.5 (2026-10-22)**, with the amendments noted below.
 
 Read this with `CLAUDE.md`, `docs/decisions.md` and Phase 1 of `docs/build-plan.md`. Where this plan and `decisions.md` disagree, `decisions.md` wins.
 

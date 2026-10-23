@@ -30,7 +30,13 @@ Ideas for later. Not part of the current step.
 - **Team names on the 404 page (2026-10-22).** The not-found page lists the 32 team codes from `web/lib/team-codes.json`, not names: it's part of every route, so an uncached query there made even the home page query the database on each visit. Step 1.5 cached `getTeams()` (2026-10-22), so the names (and badges) can now come back without that cost: check that `/` stays `○` in the route table.
 - **Team links: prefetch the whole page (2026-10-22).** Team links prefetch only the route's App Shell (Partial Prefetching), so a click waits for the season-range part. If navigation feels slow, `prefetch={true}` on team links fetches the rest ahead, at the cost of one request per visible link.
 - **An atomic switch across marts (2026-10-22).** `pipeline publish` replaces the marts one at a time over about 40 s, so a page rendered in that window can mix old and new marts (both tested). A true switch would build into a new schema and rename schemas, re-granting `web_reader`, in one transaction each night. Disproportionate for now; revisit if a mixed page is ever seen to matter.
-- **The 404 page's footer stamp after a refresh (2026-10-22, outstanding).** On Vercel, the 404 page kept the previous "Data updated" stamp after a successful refresh (edge cache `HIT`), while every main page moved; locally it moved. How long it lags isn't measured yet (`decisions.md`, "Nightly refresh and run records"). Options once measured: leave it if it catches up within a day; or exclude the stamp from the not-found page; or have the refresh also revalidate the not-found route.
+- **The 404 page's footer stamp after a refresh (2026-10-22, outstanding; updated 2026-10-23).**
+  - **What happens:** on Vercel, the 404 page keeps an old "Data updated" stamp, served from Vercel's cache. The scheduled run's refresh didn't replace it, and on 2026-10-23 it was 27.8 hours old, past the 1-day `revalidate`, so no bound is known (`decisions.md`, "Nightly refresh and run records"). Every main page refreshes; locally the 404 page does too.
+  - **Options:**
+    - drop the stamp from the not-found page (the simplest);
+    - have `/api/revalidate` also expire the cached 404 response (needs a check that Vercel honours it).
+  - **Impact:** only the footer stamp on an error page.
+- **Schedule delay (2026-10-23).** GitHub started the first scheduled nightly about 4 h 51 min after 09:30 UTC. If late runs persist, move the cron earlier, or add a second cron an hour or two later that only runs when the day's run hasn't happened yet.
 
 ## Tooling and operations
 

@@ -1,6 +1,6 @@
 # Phase 1 implementation plan: baseline and reliability (steps 1.1–1.6)
 
-**Status:** agreed with Rob on 2026-10-21: the plan, decisions D1–D7 and the refinements below. Not started.
+**Status:** agreed with Rob on 2026-10-21: the plan, decisions D1–D7 and the refinements below. **Built and verified: steps 1.1–1.6 complete on 2026-10-23** (`docs/plans/phase-1-verification.md`).
 
 Read this with `CLAUDE.md`, `docs/decisions.md` and Phase 1 of `docs/build-plan.md`. Where this plan and `decisions.md` disagree, `decisions.md` wins.
 

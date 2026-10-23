@@ -1,6 +1,9 @@
 # Phase 1 verification
 
-**Status:** **Stage A complete (2026-10-22, about 18:30 UTC). Stage B, the first scheduled nightly run, is NOT YET VERIFIED.** Phase 1 isn't complete until Stage B is.
+**Status:** **Complete.**
+- **Stage A:** 2026-10-22, about 18:30 UTC.
+- **Stage B:** 2026-10-23, about 22:00 UTC, after the first scheduled nightly run ([39968873806](https://github.com/robworron/down-and-distance/actions/runs/39968873806)).
+- **Verdict:** every Phase 1 acceptance criterion is met. Phase 2 may start once Rob authorizes it. Outstanding issues are listed below; none blocks Phase 2.
 
 - **Audited:** `main` at `289d06c` (clean, in sync with `origin/main`).
 - **Criteria:**
@@ -24,12 +27,12 @@
 | 1.4 | 404 / 200 / 308 locally and live; each empty and error state shown once; titles and descriptions in the head; tests, lint and build pass | ✅ VERIFIED |
 | 1.5 | Route table; repeat visits faster locally and live; 401 / 405 / 503; a POST refreshes a changed value; tests pass | ✅ VERIFIED |
 | 1.6a | A manual run is green | ✅ VERIFIED |
-| **1.6b** | **A scheduled run fires on its own** | ⏳ **NOT YET VERIFIED** (first due 2026-10-23 09:30 UTC) |
-| 1.6c | The footer stamp advances without a redeploy | ✅ VERIFIED on the manual production run; to be confirmed again on the scheduled run |
+| **1.6b** | **A scheduled run fires on its own** | ✅ **VERIFIED**: [39968873806](https://github.com/robworron/down-and-distance/actions/runs/39968873806), event `schedule`, green; it started about 4 h 51 min after the cron time (O12) |
+| 1.6c | The footer stamp advances without a redeploy | ✅ VERIFIED on the manual production run, and again on the scheduled run (no Vercel build since 2026-10-22 18:07). Exception: the 404 page's stamp (O2) |
 | 1.6d | A deliberately broken dbt test turns the run red, skips the refresh, and leaves `marts` untouched | ✅ VERIFIED |
 | 1.6e | A forced weather failure is recorded in `raw.source_loads` while the other tables still load | ✅ VERIFIED |
 | 1.6f | A rerun changes no data row counts | ✅ VERIFIED |
-| Req §7 | Baseline; restore point; architecture; states, metadata and protected invalidation; a scheduled refresh with run records and visible freshness | ✅ except the scheduled refresh, which waits on 1.6b |
+| Req §7 | Baseline; restore point; architecture; states, metadata and protected invalidation; a scheduled refresh with run records and visible freshness | ✅ |
 
 ## Evidence
 
@@ -132,6 +135,37 @@
 - Every main page, the request-time `/teams/buf?from=2016` and the 404 page show stamp `2026-10-22T18:00:36Z`, which matches `marts.data_freshness`. All served as `X-Vercel-Cache: HIT`.
 - Vercel deployed `main`'s HEAD (`289d06c`): "Deployment has completed".
 
+### Stage B: the first scheduled run
+- **The run:** [39968873806](https://github.com/robworron/down-and-distance/actions/runs/39968873806), event **`schedule`**, commit `289d06c`, conclusion **success**.
+  - It was created at 14:21:05 UTC on 2026-10-23, and the job ran 14:21:10–14:23:38 (**2 min 28 s**). That's about 4 h 51 min after the 09:30 UTC cron time.
+  - Every step succeeded (the simulation guard is skipped, as it should be on production).
+- **The target check, on its first use on a runner:** "DATABASE_URL points at a remote host (not shown); the production run can continue."
+- **Ingest:** exit 0 in 7 s.
+  - `raw.schedules` +0 / ~22 / -0;
+  - `raw.teams` unchanged;
+  - `raw.game_weather` unchanged (65);
+  - `raw.pbp` **+171** / ~14 / -0 (Thursday's game).
+- **Raw gate:** 15 passed, 2 advisory deselected.
+- **Builds:** candidate PASS=338, then the real build PASS=338; "published: 9 marts replaced, raw unchanged under the lock (F0 = F1), row counts equal to the candidate, in 95 s".
+- **Refresh:** 200; all 6 page checks ok; **"stamp: every page shows 2026-10-23T14:21:37Z"**.
+- **Advisory checks:** 2 passed.
+- **The run summary:** "every stage succeeded".
+- **Production, read-only:**
+  - `raw.pipeline_runs` has 3 rows, the newest **`schedule` / `production` / `success`** (git `289d06c`, 7 s), with all four `source_loads` `success`; none left `running`.
+  - `marts.data_freshness` shows all four sources `success` at about 14:21:37.
+  - `raw.pbp` went from 500,634 to **500,805**, matching the run's +171.
+- **The live site** (22:00 UTC):
+  - **Stamp:** every main page shows **`2026-10-23T14:21:37Z`**, "Data updated Fri Oct 23, 10:21 am ET": `/`, `/teams`, `/teams/buf`, `/teams/buf?from=2016`, `/explorer`, `/leaderboards` and `/this-week`, all equal to Neon.
+  - **No redeploy:** since the last push (2026-10-22 18:07 UTC), the only deployment record is GitHub's own `production` environment record (14:21:06), and Vercel's latest build of `main` is from 2026-10-22 18:07:40.
+  - **Health:** 18 of 18 status checks pass; every route has its title and description in the head.
+- **Access:** `create_web_reader --check` gives marts 10 of 10, staging 0 of 7, raw 0 of 6, writes refused, sessions read-only. `candidate_schemas_unreadable.sql`: no usage, 0 readable tables in either candidate schema.
+- **CI:** green on `main` (`289d06c`).
+- **Credential scan** of the scheduled run's log: 0 matching lines. (`gh` labelled every line `UNKNOWN STEP` this time, so the log was read by content rather than by step.)
+- **Storage:** **234 MB** (raw 188 MB, marts 18 MB, marts_candidate 18 MB, staging and staging_candidate 120 kB each).
+- **The 404 page (O2):** `/teams/xyz` and `/nope` still showed **`2026-10-22T18:00:36Z`**, as `X-Vercel-Cache: HIT` with `Age: 100056` s (about 27.8 h).
+  - The scheduled run's refresh didn't replace it, and its age is past the 1-day `revalidate`, so **no bound is observed**.
+  - **Gap:** the 30-minute watcher logged only 18:12 and 18:43 on 2026-10-22 before Git Bash failed to start a process (`fork: Resource temporarily unavailable`, `0xC000026B`). Nothing it logged was lost, but there are **no observations between 18:43 on 2026-10-22 and 22:00 on 2026-10-23**, and none are inferred.
+
 ## Security review
 
 | Check | Result |
@@ -174,19 +208,21 @@ Earlier in Phase 1, the 1.4 spike showed a page can't set its own 404 status und
 
 | # | Item | Severity | Blocks Phase 2? |
 | --- | --- | --- | --- |
-| O1 | **The scheduled run hasn't fired yet** (1.6b), so the database-target check hasn't run on GitHub either | Required | **Yes** (Stage B) |
-| O2 | **The 404 page's stamp lags after a refresh.** Stale at 18:03–18:04 after the 18:02 refresh (`HIT`); fresh by 18:12 (`MISS`). One observation of under about 10 minutes. No bound is established, and a watcher logs it every 30 min until the scheduled run | Low: the stamp only; content and status correct | No |
+| O1 | ~~The scheduled run hadn't fired~~: **resolved** 2026-10-23 (run 39968873806, green; the target check passed on its first use) | — | — |
+| O2 | **The 404 page's stamp isn't refreshed on Vercel.** The scheduled run's refresh didn't replace it; at 22:00 on 2026-10-23 it still showed the 2026-10-22 stamp (`HIT`, `Age` about 27.8 h, past the 1-day `revalidate`). **No bound observed.** Every main page refreshes; the 404 content and status are correct. There are no observations from 18:43 on 2026-10-22 to 22:00 on 2026-10-23 (the watcher failed). Fix options are in the parking lot | Low: the stamp on an error page | No; decide the fix before or during Phase 2 |
 | O3 | **Vercel Preview `DATABASE_URL`** (raised in 1.5) is still undecided. If it isn't set, pull-request preview builds fail, though Production and CI don't | Low | No; decide before Phase 2 uses pull requests |
 | O4 | **Neon CU-hours** not measured | Low | No; read after a week |
-| O5 | **Documentation drift:** the build plan's 1.6 text still says "repository secrets" and names `NEON_DATABASE_URL` (superseded by the environments in `decisions.md`); `phase-1.md` and `states-and-caching.md` still say "not started" | Low | Fixed in the `1.6: record checks` commit |
+| O5 | ~~Documentation drift~~: **resolved** in `1.6: record checks` (the build plan's 1.6 text names the environments and `pipeline publish`; both plan files' status lines updated) | — | — |
 | O6 | The Neon `foundation` and `nightly-test` branches weren't re-checked (no console access here); `nightly-test` diverges with each test run | Low | No; Rob can confirm both in the console (3 of 10 branches) |
 | O7 | **The `test` environment has no branch restriction:** any branch may run against the test database | Low (test data only) | No |
 | O8 | **`main` is unprotected** (D3) | Accepted | No; revisit at Gate D |
 | O9 | **Unverified assumptions:** dbt-postgres replaces each table in one transaction, so a reader never sees a half-built table (dbt's documented behaviour; not observed with a concurrent reader); warm Vercel instances drop old entries after a refresh (measured once, in V5, not guaranteed); GitHub runs scheduled jobs on time (they can be delayed under load) and turns them off after 60 days without repository activity (for 5.10's runbook) | Accepted, documented | No |
 | O10 | **A slow Open-Meteo night can take about 15 minutes.** The weather loader's worst case is about 6 minutes, inside the 45-minute job limit, but it could grow if Open-Meteo worsens | Low | No |
 | O11 | **Cosmetic:** `backup_schema`'s per-schema table runs the longer schema names into their counts | Trivial | No |
+| O12 | **GitHub ran the first scheduled job about 4 h 51 min late** (09:30 cron, 14:21 start). On a delayed day the site's data arrives later than planned; the run itself was correct | Low to medium, if it persists | No; watch the next runs (an earlier or second cron is in the parking lot) |
+| O13 | **Long background watches on this Windows machine can die** (Git Bash `fork` failure). Evidence collection should come from GitHub's own run history and fresh probes, not from a watcher left running overnight | Process note | No |
 
-## Stage B: after the first scheduled run
+## Stage B checklist (done 2026-10-23; evidence above)
 1. The run's event is `schedule`, not `workflow_dispatch`; record its URL, commit and duration.
 2. "Check the database target" passed, on its first use on a runner.
 3. Ingest, raw gate, candidate, publish and refresh (`--expect-stamp`) all succeeded.
@@ -196,3 +232,52 @@ Earlier in Phase 1, the 1.4 spike showed a page can't set its own 404 status und
 7. `check:status` 18 of 18 live, `create_web_reader --check`, `candidate_schemas_unreadable.sql`, CI green.
 8. Storage and the database results, recorded.
 9. Then: the `1.6: record checks` commit (evidence, the O5 doc fixes, the 1.6 tick), this report's final verdict, and the Phase 1 summary with its checkpoint concepts.
+
+## Phase 1 summary
+
+**What was built (steps 1.1–1.6):**
+- **A measured baseline.**
+- **Three restore points:** the `foundation` tag, the Neon `foundation` branch, and schema dumps that restore.
+- **CI on every push and pull request,** with no secrets.
+- **Real 404s and 308s** through Proxy; error boundaries, skeletons, empty states, metadata, the small-sample rule and touch hints.
+- **Every marts query cached,** with static shells and a secret-protected refresh route.
+- **The nightly job:** independent loaders with run records; a raw gate and candidate build under a lock on raw before anything is published; a footer freshness stamp the refresh proves on every main page; the test and production environments kept apart.
+
+**Checkpoint concepts** (Rob should be able to explain each):
+1. **What was preserved and why.**
+   - The `foundation` tag, branch and dumps are the last-resort rollback.
+   - Every change was additive, and production went expand → deploy → contract, so the live site never errored.
+   - The marts are only replaced by a build that passed every test.
+2. **CI vs the nightly job.**
+   - **CI** checks *code*: lint, types and tests on every push. It runs against a throwaway database, holds no secrets, and never touches Neon.
+   - **The nightly job** refreshes *data* in production, with environment secrets: ingest, gate, candidate, publish, then refresh.
+3. **How to roll back:**
+   - **code:** revert the step's commit (Vercel redeploys from `main`), or check out the `foundation` tag;
+   - **a bad night:** marts are untouched when the gate or candidate fails; rerun after a fix (idempotent);
+   - **automation:** delete `NIGHTLY_SCHEDULE`;
+   - **data:** restore production from the Neon `foundation` branch (Rob only; `decisions.md`, "Restore points").
+4. **A nightly run, step by step:**
+   1. Guard against fault injection on production, then refuse a local `DATABASE_URL`.
+   2. Ingest each source independently, recording every outcome; schedules is required.
+   3. Publish: SHARE-lock raw (F0); raw gate; candidate build into `*_candidate` with every test; only then the real build; then F1 = F0 and equal row counts.
+   4. Refresh the site and check the new stamp on every main page.
+   5. Run the advisory checks; the run turns red if any stage failed.
+
+**What the candidate build does and doesn't guarantee:**
+- **Does:** every published mart was built from the same frozen raw rows as a candidate that passed every test, and a failure before the real build leaves the marts exactly as they were.
+- **Doesn't:**
+  - an atomic switch across marts (they're replaced one by one over about 40 s);
+  - correctness beyond what the tests check;
+  - protection once the lock is lost (which is detected after the fact, exit 3).
+
+## Readiness verdict
+**Phase 1 is complete: every acceptance criterion in the build plan, the agreed plan's checklist and requirements §7 is verified, with evidence above.** Nothing outstanding blocks Phase 2.
+
+Before or early in Phase 2, Rob should decide or check:
+- **O2:** the 404 page's stamp fix;
+- **O3:** Vercel Preview's `DATABASE_URL`, before Phase 2 relies on pull-request previews;
+- **O4:** read Neon's compute use after a week of nightly runs;
+- **O6:** confirm the `foundation` and `nightly-test` branches in the Neon console;
+- **O12:** watch whether scheduled runs keep starting late.
+
+Phase 2 starts only with Rob's authorization, and with its plan agreed and saved in `docs/plans/` first.
