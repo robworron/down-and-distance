@@ -2,7 +2,7 @@
 
 **Written:** 2026-10-23, at the end of the session that built and verified Phase 1.
 **For:** the next Claude Code session, which plans Phase 2 (player data) with Rob.
-**Status:** Phase 1 is complete. **Phase 2 has not started:** no step is planned, no player code exists, and no player table exists locally or on Neon.
+**Status:** Phase 1 is complete. **Phase 2 is planned, not started:** the agreed plan is `docs/plans/phase-2.md` (2026-10-23). No player code exists, and no player table exists locally or on Neon. Sections A–F below are the planning session's starting point. Where their figures differ from the plan's (e.g. the 536 placeholder rows, the "9 trades"), the plan's re-measured values (X1–X17) win. **Section G** is the checklist for the session that implements step 2.1.
 
 This is an orientation document, not a source of truth. Where it disagrees with another document, the other one wins, in this order:
 1. `docs/decisions.md`;
@@ -309,3 +309,100 @@ Phase 2 is the raw layer only. dbt models, scoring and pages start in Phase 3. I
 6. **Present** it to Rob for approval. Save the agreed plan as `docs/plans/phase-2.md` and link it from the build plan. Only then start 2.1.
 
 **Don't implement anything in Phase 2 until Rob has approved the plan.**
+
+## G. Step 2.1 implementation readiness (added 2026-10-23, end of the planning session)
+
+A checklist for the session that implements step 2.1. The authoritative plan is **`docs/plans/phase-2.md`**. For step 2.1 itself, read §6 "Step 2.1", plus §3 P2-D3, P2-D4, P2-D5 and P2-D13. Don't replan Phase 2: its decisions P2-D1 to P2-D13 are agreed.
+
+### Starting state
+- **Branch and sync:** `main`, in sync with `origin/main`. The planning commits are:
+  - `2577ab7 Phase 2: agreed implementation plan`;
+  - then this handoff update.
+- **Tree:** clean. No Phase 2 code or notebook exists (`notebooks/07_*` and `pipeline/load_player_*` are absent), and no player table exists locally or on Neon.
+- **Build plan:** boxes 1.1–1.6 are ticked and 2.1–2.7 unticked; Phase 1 is verified (`docs/plans/phase-1-verification.md`).
+- **Probes:** the planning session's read-only probes were scratch files outside the repo. Their findings are summarised in the plan's §2 and X1–X17, and 2.1 reproduces them in the notebook.
+
+### Step 2.1 scope
+- **Deliverables:**
+  - `notebooks/07_player_sources.ipynb`, which re-runs headless with asserts as its Done-when;
+  - `docs/fantasy-source-audit.md`: requirements §5.2's eight items per source, the weekly-stats-versus-play-by-play statement, the licences, the two-attribute terminology (MVP dependency vs nightly failure policy) and the P2-D13 investigation;
+  - `docs/figures/player_source_coverage.png`.
+- **Files to modify:**
+  - `docs/decisions.md`: a 2.1 entry recording the columns, trims, types, anomalies, the projection and G1, the 11-player threshold, the P2-D13 evidence and options, and the 2.1 storage-rule amendment (P2-D4);
+  - `docs/build-plan.md`: the Data sources table re-verified with dated numbers (X1–X8), the storage table, the terminology, and the 2.1 tick.
+- **Reuse:**
+  - `pipeline.db.nflverse_to_pandas` (never write Polars code);
+  - `pipeline/analysis.py` (`chart_style`, `save_figure`; load the `dataviz` skill before chart code);
+  - the notebook conventions in `CLAUDE.md`;
+  - the size-estimator method in the plan's §7 (calibrate against `raw.schedules`, and use `raw.pbp_pkey` for the key factor; local catalogue reads are read-only).
+- **Audits and asserts** (the plan's §6 Step 2.1, items 5–6):
+  - per source: schema and dtypes, rows per season and type, keys after the documented drops, null and blank IDs, ID mappings, team codes against the schedule, current-season coverage, columns null by season, integer maximums, release upload times;
+  - the scoring identity (0, 194, 432);
+  - zero-stat appearances;
+  - the 11-player completeness test and its known historical exceptions;
+  - the delete-pattern table;
+  - X1–X6 listed by row;
+  - the column lists and the explicit type map per table;
+  - **asserts:**
+    - 0 duplicate keys;
+    - scoring identity 0;
+    - snap mapping ≥ 99.5% in every season 2016–2026;
+    - placeholders have 0 offensive volume;
+    - the 2 null-opponent rows are placeholders;
+    - multi-team roster rows ⊆ the known 2019 collision;
+    - G1.
+- **Storage, G1:**
+  - (a) the Gate A projection, the high estimate on the console figure, must be under 700 MB;
+  - (b) the full-MVP low estimate must be under 700 MB.
+  - If either fails, stop before 2.2 and hand Rob the mitigations M1–M7.
+- **What Rob provides:** from the Neon console (read-only; no connection from Claude), the project's **storage** and **history** figures, with their units and the date. Give him click-by-click steps.
+- **P2-D13** (strict):
+  - the investigation:
+    - Sports Reference's Terms of Use (clause 5) and "Acceptable Use of Sports Reference Data", read in full;
+    - nflverse's statements on snap counts (`nflverse-pfr` README and licence, the `load_snap_counts` docs);
+    - exactly what the MVP would store and show;
+    - a draft permission request for Rob to send himself.
+  - Weigh nflverse's CC BY 4.0 statement and Sports Reference's terms **together**. Don't assume attribution, internal-only use or derived values resolve the concern.
+  - Recommend R-a, R-b or R-c from the evidence; **Rob decides**.
+  - Snap counts may be read **in memory only**, for aggregate coverage. The committed notebook and audit show aggregates only, never player-level snap rows, and nothing goes into any database.
+- **Done-when:**
+  - the notebook's asserts pass on a headless re-run (`uv run jupyter nbconvert --to notebook --execute --inplace notebooks/07_player_sources.ipynb`);
+  - the audit is complete;
+  - G1 passes.
+
+  The rights decision isn't part of 2.1's Done-when; it is 2.5's precondition.
+- **Checks before the commit:**
+  - `uv run ruff check` (notebooks are excluded);
+  - `uv run pytest` (with Docker up);
+  - the notebook re-run.
+
+  No web or dbt files change.
+- **Commit:**
+  - one commit, `2.1: player source audit`, with the box ticked in it (fully checkable before the push), then push;
+  - commit the notebook with its outputs;
+  - then a clause-by-clause walkthrough for Rob, and a stop.
+
+### Approval boundaries
+1. **Already authorised for step 2.1:**
+   - reading the four nflverse sources and schedules into memory;
+   - GitHub's public API (release timestamps) and reading the public terms pages;
+   - read-only catalogue queries on the **local** database;
+   - creating and changing the files listed above;
+   - running the local tests and the notebook;
+   - committing and pushing step 2.1's docs-and-notebook commit once its Done-when passes.
+2. **Needs Rob's approval first:**
+   - any Neon connection, even read-only (none is planned for 2.1);
+   - confirming P2-D3 or P2-D5 again if the notebook's counts differ materially from the plan;
+   - the P2-D13 outcome (R-a, R-b or R-c);
+   - sending the permission request (Rob sends it);
+   - any change to a decision already agreed;
+   - moving on to step 2.2.
+3. **Prohibited in this session:**
+   - any production database write;
+   - any schema change, local or Neon;
+   - implementing any part of steps 2.2–2.7 (loaders, upsert changes, run-record columns, checks, workflow edits);
+   - loading snap counts, or any PFR-derived data, into any database before P2-D13 is resolved;
+   - committing player-level snap rows;
+   - changing `.github/workflows/`, `web/`, dbt models or Vercel;
+   - printing or committing secrets;
+   - starting step 2.2 automatically, even when 2.1 passes.
