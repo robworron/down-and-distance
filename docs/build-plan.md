@@ -575,6 +575,8 @@ Checkpoint: you can explain:
 
 **Goal:** every player source the MVP needs is loaded into `raw` (2016 on), checked, repeatable with one command, and refreshed nightly.
 
+**Detailed plan:** `docs/plans/phase-2.md`, agreed with Rob on 2026-10-23. It sets out each step's tasks, files, tests, safeguards and approvals, and decisions P2-D1–D13. Where it amends a step below (the 2.1 storage rule, the 2.4 Done-when wording, the player checks' file), the amendment is recorded in `docs/decisions.md` when that step lands. `docs/decisions.md` still wins where they disagree. Step 2.5 can't start until the snap-count rights checkpoint (P2-D13) is recorded.
+
 - [ ] **2.1 Source audit and column choice.**
   - **Notebook 07** (`notebooks/07_player_sources.ipynb`) re-runs headless and checks, for each source:
     - schema and row counts per season;

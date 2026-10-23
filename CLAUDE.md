@@ -1,6 +1,6 @@
 # Down & Distance
 
-A public fantasy football research application, with team-level NFL research alongside it. Python batch jobs load data into PostgreSQL, dbt transforms it with SQL, and a Next.js site on Vercel reads the results. Phase 0 of the build plan (the data pipeline, dbt warehouse, team analysis and team research pages) and Phase 1 (baseline and reliability: CI, error states, caching, the nightly job) are built and verified; the fantasy features (Phases 2–7) are planned. `docs/plans/phase-2-handoff.md` orients a new session for Phase 2.
+A public fantasy football research application, with team-level NFL research alongside it. Python batch jobs load data into PostgreSQL, dbt transforms it with SQL, and a Next.js site on Vercel reads the results. Phase 0 of the build plan (the data pipeline, dbt warehouse, team analysis and team research pages) and Phase 1 (baseline and reliability: CI, error states, caching, the nightly job) are built and verified; the fantasy features (Phases 2–7) are planned. `docs/plans/phase-2.md` is the agreed plan for Phase 2 (player data), which starts at step 2.1.
 
 The full plan and step checklist is `docs/build-plan.md`. Read the current step there before starting any work. Do not import that file; open it when needed. The product requirements are `docs/requirements.md`. Step numbers in older code comments may not match the build plan; the build plan's numbering is current.
 
@@ -100,7 +100,7 @@ Run from the repo root unless noted. Anything local needs Docker Desktop running
   - **Figures:** `save_figure` writes `docs/figures/<name>.png`, which `docs/findings.md` and the later README and write-up embed. Load the `dataviz` skill before writing chart code.
   - **The analysis rules** (seasons, baselines, the keep rule) and their dated amendments are in `docs/decisions.md`. Notebooks 04 and 06 pin the 13 pre-registered situations (`PHASE3_SITUATIONS`), so later registry rows don't change them.
 - **Reference:**
-  - `docs/plans/` holds detailed plans agreed for upcoming steps, linked from the build plan. `phase-1.md` is the agreed plan for Phase 1 (steps 1.1–1.6), and `states-and-caching.md` the agreed design for steps 1.4 and 1.5. Read the current plan before starting its step; `decisions.md` still wins where they disagree.
+  - `docs/plans/` holds detailed plans agreed for upcoming steps, linked from the build plan. `phase-1.md` is the agreed plan for Phase 1 (steps 1.1–1.6), `states-and-caching.md` the agreed design for steps 1.4 and 1.5, and `phase-2.md` the agreed plan for Phase 2 (steps 2.1–2.7, decisions P2-D1–D13). Read the current plan before starting its step; `decisions.md` still wins where they disagree.
   - `docs/data-model.md` describes every table, its checks and the weather rules.
   - `docs/findings.md` holds the team situation analysis and the v1 situation verdicts: which situations are featured, which are filters, which were trimmed (`in_v1` false in `transform/seeds/situations.csv`).
 
